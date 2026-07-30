@@ -13,8 +13,8 @@ export const siteConfig = {
 		campaign: "navigation",
 	},
 	meta:{
-		title: "RicoFast — A design-led SaaS template for Astro",
-		description: "A polished, open-source SaaS template built with Astro and Tailwind CSS. Modular sections, dark mode, and a documented design system.",
+		title: "RicoFast — 设计优先的 Astro SaaS 模板",
+		description: "一款精致、开源的 SaaS 模板，基于 Astro 与 Tailwind CSS 构建。模块化区块、内置暗色模式，以及开箱即用的文档化设计系统。",
 		keywords: "saas template, astro template, tailwind template, startup website, landing page, indie hacker",
 		image: `${SITE_URL}/og.jpg`,
 		twitterHandle: "",

@@ -1,0 +1,7 @@
+exists check: True
+FAIL file E:\work\my-saas\node_modules\@esbuild\win32-x64\esbuild.exe err=5
+FAIL dir E:\work\my-saas\node_modules\@esbuild\win32-x64 err=5
+FAIL file E:\work\my-saas\node_modules\@rollup\rollup-win32-x64-msvc\rollup.win32-x64-msvc.node err=5
+FAIL dir E:\work\my-saas\node_modules\@rollup\rollup-win32-x64-msvc err=5
+FAIL file E:\work\my-saas\node_modules\@tailwindcss\oxide-win32-x64-msvc\tailwindcss-oxide.win32-x64-msvc.node err=5
+FAIL dir E:\work\my-saas\node_modules\@tailwindcss\oxide-win32-x64-msvc err=5

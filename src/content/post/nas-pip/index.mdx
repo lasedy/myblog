@@ -1,0 +1,33 @@
+---
+title: "【转发】群晖NAS安装pip及requests包"
+description: "群晖NAS通过套件中心安装Python3后，使用 get-pip.py 安装 pip 及 requests 包的方法。"
+publishDate: 2026-07-29
+read: 3
+tags: ["NAS", "群晖", "教程"]
+img: "/assets/nas-pip-cover.jpg"
+img_alt: "群晖NAS安装pip及requests包"
+featured: true
+---
+
+[原文传输门](https://blog.csdn.net/xhm0924/article/details/133230273)
+
+群晖NAS安装pip及requests包  
+套件中心安装Python3（3.8版本）  
+安装pip  
+
+SSH远程连接群晖系统，登陆后输入：sudo -i ，切换root权限，输入密码。  
+
+```bash
+wget https://bootstrap.pypa.io/get-pip.py
+```
+
+```bash
+python3 get-pip.py
+```
+
+```bash
+sudo vim /etc/profile
+```
+
+在path添加路径/var/packages/py3k/target/usr/local/bin  
+:wq 保存，可以输入"pip --version"查看版本。

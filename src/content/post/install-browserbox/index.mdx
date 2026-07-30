@@ -1,0 +1,76 @@
+---
+title: "Ubuntu24.04 install BrowserBox(CentOS8 失败)"
+description: "在 Ubuntu 24.04 上安装 BrowserBox 的完整流程（CentOS 8 失败），涵盖域名解析、SSL 证书准备、克隆部署、端口绑定与启动停止。"
+publishDate: 2024-08-15
+read: 5
+tags: ["BrowserBox", "Ubuntu", "VPS", "Docker", "教程"]
+img: "/assets/browserbox-cover.jpg"
+img_alt: "Ubuntu 24.04 install BrowserBox"
+---
+
+![BrowserBox 安装封面](/assets/browserbox-cover.jpg)
+
+# 提前自己准备域名解析到 VPS 的 IP
+
+## 准备工作
+
+### 更新源并安装
+
+```bash
+ubuntu@10:~$ sudo apt update -y && sudo apt install -y git screen vim curl wget unzip
+```
+
+### 创建目录
+
+```bash
+ubuntu@10:~$ mkdir ~/sslcerts && cd ~/sslcerts
+```
+
+将域名的 SSL 证书复制到该目录下（将 xxx 改成自己的域名）：
+
+- `bb.xxx.top.pem` 改名为 `fullchain.pem`
+- `bb.xxx.top.key` 改名为 `privkey.pem`
+
+```bash
+ubuntu@10:~/sslcerts$ mv xxx.top.pem fullchain.pem && mv xxx.top.key privkey.pem
+```
+
+## 开始安装
+
+切换到根目录，克隆 BrowserBox 项目，开始安装（将 xxx 改成自己的域名，邮箱用自己的）：
+
+```bash
+ubuntu@10:~/sslcerts$ cd ~ && git clone https://github.com/BrowserBox/BrowserBox.git
+ubuntu@10:~$ cd ~/BrowserBox/
+ubuntu@10:~/BrowserBox$ ./deploy-scripts/wait_for_hostname.sh bb.xxx.top
+ubuntu@10:~/BrowserBox$ yes | ./deploy-scripts/global_install.sh bb.xxx.top xxx@163.com
+```
+
+将设置 BrowserBox 绑定到端口 9999，并且将加密链接写入 `my.login.link.txt`：
+
+```bash
+ubuntu@10:~/BrowserBox$ setup_bbpro --port 9999 > my.login.link.txt
+```
+
+## 安装完毕
+
+`bbpro` 将启动 BrowserBox：
+
+```bash
+ubuntu@10:~/BrowserBox$ bbpro
+```
+
+获取链接，浏览器访问：
+
+```bash
+ubuntu@10:~/BrowserBox$ cat my.login.link.txt
+https://bb.xxx.top:9999/login?token=***
+```
+
+![BrowserBox 登录页面](/assets/browserbox-screenshot.png)
+
+`stop_bbpro` 将停止 BrowserBox：
+
+```bash
+ubuntu@10:~/BrowserBox$ stop_bbpro
+```

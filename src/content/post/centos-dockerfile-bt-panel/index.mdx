@@ -1,0 +1,112 @@
+---
+title: "CentOS Dockerfile语法构建宝塔自启动服务"
+description: "使用 CentOS 镜像通过 Dockerfile 构建宝塔（BT-Panel）Docker 镜像，包含完整 Dockerfile、entrypoint.sh 自启动脚本，实现容器重启后所有服务自动恢复。"
+publishDate: 2020-04-06
+read: 6
+tags: ["CentOS", "Docker", "宝塔", "BT-Panel", "教程"]
+img: "/assets/bt-panel-cover.jpg"
+img_alt: "CentOS Dockerfile 构建宝塔自启动服务"
+---
+
+![CentOS Dockerfile 构建 BT Panel](/assets/bt-panel-docker.png)
+
+`dockerfile`
+
+```dockerfile
+#  基础镜像，当前镜像基于哪个镜像
+FROM centos:latest
+
+#  指定在创建容器后，终端默认登录进来的工作目录，一个落脚点
+WORKDIR /tmp
+
+#解决Failed to download metadata for repo 'AppStream'
+RUN cd /etc/yum.repos.d/
+RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+RUN yum update -y
+
+#安装BT-Panel    linux shell 自动输入y/yes方法：echo y | bash install.sh
+RUN yum install -y sudo
+RUN yum install -y wget && wget -O install.sh http://download.bt.cn/install/install_6.0.sh && sudo echo y|bash install.sh
+
+#当前容器对外暴露的端口
+EXPOSE 8888 80 443 21 20 888 3306 9001 25
+
+#将entrypoint.sh 复制到/usr/local/bin/
+COPY entrypoint.sh /usr/local/bin/
+#赋权限
+RUN chmod 777 /usr/local/bin/entrypoint.sh
+#创建快捷方式
+RUN ln -s /usr/local/bin/entrypoint.sh /entrypoint.sh
+#自启动
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+`entrypoint.sh`
+
+```bash
+#!/bin/bash
+#/etc/init.d/bt start    #启动服务
+#/bin/bash               #保留一个终端，防止容器自动退出
+
+if [ -f "/etc/init.d/bt" ];then
+    /etc/init.d/bt start
+fi
+if [ -f "/etc/init.d/pure-ftpd" ];then
+    /etc/init.d/pure-ftpd start
+fi
+if [ -f "/etc/init.d/php-fpm-52" ];then
+     /etc/init.d/php-fpm-52 start
+fi
+if [ -f "/etc/init.d/php-fpm-53" ];then
+    /etc/init.d/php-fpm-53 start
+fi
+if [ -f "/etc/init.d/php-fpm-54" ];then
+    /etc/init.d/php-fpm-54 start
+fi
+if [ -f "/etc/init.d/php-fpm-55" ];then
+    /etc/init.d/php-fpm-55 start
+fi
+if [ -f "/etc/init.d/php-fpm-56" ];then
+    /etc/init.d/php-fpm-56 start
+fi
+if [ -f "/etc/init.d/php-fpm-70" ];then
+    /etc/init.d/php-fpm-70 start
+fi
+if [ -f "/etc/init.d/php-fpm-71" ];then
+    /etc/init.d/php-fpm-71 start
+fi
+if [ -f "/etc/init.d/php-fpm-72" ];then
+    /etc/init.d/php-fpm-72 start
+fi
+if [ -f "/etc/init.d/nginx" ];then
+    /etc/init.d/nginx start
+fi
+if [ -f "/etc/init.d/httpd" ];then
+    /etc/init.d/httpd start
+fi
+if [ -f "/etc/init.d/redis" ];then
+    if [ -f "/var/run/redis_6379.pid" ];then
+        unlink /var/run/redis_6379.pid
+    fi
+    /etc/init.d/redis start
+fi
+if [ -f "/etc/init.d/memcached" ];then
+    /etc/init.d/memcached start
+fi
+if [ -f "/etc/init.d/mysqld" ];then
+    /etc/init.d/mysqld start
+fi
+if [ -f "/usr/sbin/crond" ];then
+    if [ -f "/var/run/crond.pid" ];then
+        unlink /var/run/crond.pid
+    fi
+    /usr/sbin/crond start
+fi
+
+/bin/bash
+```
+
+将上面 2 个文件放在同一目录下，执行 `docker build -t bt-panel .`：
+
+![docker build 构建 bt-panel](/assets/bt-panel-docker.png)

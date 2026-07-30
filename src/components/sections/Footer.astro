@@ -7,25 +7,14 @@ const currentYear = new Date().getFullYear();
 
 const footerLinks = {
   product: [
-    { name: "Features", url: "/features" },
-    { name: "Pricing", url: "/pricing" },
-    { name: "Changelog", url: "/changelog" },
-    { name: "Sign in", url: "/sign-in" },
-    { name: "Sign up", url: "/sign-up" },
+    { name: "博客", url: "/blog" },
   ],
   resources: [
-    { name: "Blog", url: "/blog" },
-    { name: "Elements", url: "/elements" },
-    { name: "404", url: "/404" },
-    { name: "Docs", url: siteConfig.social.github + "#readme" },
+    { name: "文档", url: siteConfig.social.github + "#readme" },
     { name: "GitHub", url: siteConfig.social.github },
   ],
-  company: [
-    { name: "About", url: "/about" },
-    { name: "Contact", url: "/contact" },
-  ],
   legal: [
-    { name: "License (MIT)", url: siteConfig.social.github + "/blob/main/LICENSE" },
+    { name: "许可证 (MIT)", url: siteConfig.social.github + "/blob/main/LICENSE" },
   ],
 };
 
@@ -39,15 +28,15 @@ const templateVersion = "v1.0.0";
       <div class="max-w-sm">
         <Logo />
         <p class="mt-4 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          A polished SaaS template built with Astro and Tailwind CSS. Open-source, fast, and ready for production.
+          一款精致、开源的 SaaS 模板，基于 Astro 与 Tailwind CSS 构建。开源、快速，可直接用于生产环境。
         </p>
       </div>
 
-      <!-- Four columns -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 md:gap-12">
+      <!-- Columns -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-8 md:gap-12">
         <!-- Product -->
         <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Product</h4>
+          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">产品</h4>
           <ul class="space-y-3">
             {footerLinks.product.map((link) => (
               <li>
@@ -61,7 +50,7 @@ const templateVersion = "v1.0.0";
 
         <!-- Resources -->
         <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Resources</h4>
+          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">资源</h4>
           <ul class="space-y-3">
             {footerLinks.resources.map((link) => (
               <li>
@@ -73,23 +62,9 @@ const templateVersion = "v1.0.0";
           </ul>
         </div>
 
-        <!-- Company -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Company</h4>
-          <ul class="space-y-3">
-            {footerLinks.company.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-
         <!-- Legal -->
         <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Legal</h4>
+          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">法律</h4>
           <ul class="space-y-3">
             {footerLinks.legal.map((link) => (
               <li>
@@ -108,7 +83,7 @@ const templateVersion = "v1.0.0";
       <p class="text-sm text-neutral-400 dark:text-neutral-500">
         © {currentYear}
         <a href={siteConfig.url || " "} target="_blank" class="hover:text-primary dark:hover:text-primary-light transition-colors">{siteConfig.author || " "}</a>.
-        Released under the MIT License.
+        基于 MIT 许可证发布。
       </p>
 
       <div class="flex items-center gap-4">
@@ -117,7 +92,7 @@ const templateVersion = "v1.0.0";
             <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
             {templateVersion}
           </span>
-          <span>Built with Astro & Tailwind</span>
+          <span>基于 Astro 与 Tailwind 构建</span>
         </span>
         <span class="inline-flex justify-center space-x-4">
           {socialLinks.map((social) => (
