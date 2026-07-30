@@ -1,99 +1,28 @@
 ---
 import Logo from "@/components/ui/Logo.astro";
 import ToTop from "@/components/widgets/ToTop.astro";
-import { siteConfig, socialLinks } from "@/config/site.js";
+import { socialLinks } from "@/config/site.js";
 
 const currentYear = new Date().getFullYear();
-
-const footerLinks = {
-  product: [
-    { name: "博客", url: "/blog" },
-  ],
-  resources: [
-    { name: "文档", url: siteConfig.social.github + "#readme" },
-    { name: "GitHub", url: siteConfig.social.github },
-  ],
-  legal: [
-    { name: "许可证 (MIT)", url: siteConfig.social.github + "/blob/main/LICENSE" },
-  ],
-};
-
-const templateVersion = "v1.0.0";
 ---
 
 <section class="text-gray-700 border-t mt-20 md:mt-48 border-dashed border-primary/15 dark:border-primary-dark/15 border-[.75px]">
   <div class="container mx-auto px-7 max-w-7xl py-12 md:py-16">
     <!-- Top: Logo + Description -->
-    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-12">
-      <div class="max-w-sm">
-        <Logo />
-        <p class="mt-4 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          一款精致、开源的 SaaS 模板，基于 Astro 与 Tailwind CSS 构建。开源、快速，可直接用于生产环境。
-        </p>
-      </div>
-
-      <!-- Columns -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-8 md:gap-12">
-        <!-- Product -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">产品</h4>
-          <ul class="space-y-3">
-            {footerLinks.product.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <!-- Resources -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">资源</h4>
-          <ul class="space-y-3">
-            {footerLinks.resources.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <!-- Legal -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">法律</h4>
-          <ul class="space-y-3">
-            {footerLinks.legal.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+    <div class="mb-12">
+      <Logo />
+      <p class="mt-4 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-sm">
+        一个关于技术、生活与猫咪的个人空间。
+      </p>
     </div>
 
     <!-- Bottom bar -->
     <div class="border-t border-dashed border-primary/10 dark:border-primary-dark/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
       <p class="text-sm text-neutral-400 dark:text-neutral-500">
-        © {currentYear}
-        <a href={siteConfig.url || " "} target="_blank" class="hover:text-primary dark:hover:text-primary-light transition-colors">{siteConfig.author || " "}</a>.
-        基于 MIT 许可证发布。
+        © {currentYear} Gristle
       </p>
 
       <div class="flex items-center gap-4">
-        <span class="inline-flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
-          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-dashed border-primary/30 text-primary/80">
-            <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
-            {templateVersion}
-          </span>
-          <span>基于 Astro 与 Tailwind 构建</span>
-        </span>
         <span class="inline-flex justify-center space-x-4">
           {socialLinks.map((social) => (
             <a
