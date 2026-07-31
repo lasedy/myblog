@@ -1,0 +1,100 @@
+---
+title: "dockerfile语法构建镜像"
+description: "使用 Dockerfile 语法构建镜像的基础示例，包括 FROM、WORKDIR、COPY、RUN、EXPOSE、CMD 等指令的说明。"
+publishDate: "2018-12-29"
+read: 5
+tags: ["docker"]
+img: "/assets/dockerfileyu-fa-gou-jian-jing-xiang-cover.jpg"
+img_alt: "dockerfile语法构建镜像"
+featured: false
+---
+
+![Dockerfile 示例](/assets/dockerfileyu-fa-gou-jian-jing-xiang-1.jpg)
+
+```dockerfile
+# 基础镜像，当前镜像基于哪个镜像
+FROM ubuntu:18.04
+
+# 指定在创建容器后，终端默认登录进来的工作目录，一个落脚点
+WORKDIR /tmp
+
+# ADD：将宿主机目录下的文件拷贝到镜像且自动处理URL和解压tar压缩包
+# 使用源 COPY：类似ADD，将宿主机目录下的文件拷贝到镜像镜像中的路径；
+RUN rm -rf /etc/apt/sources.list
+COPY sources.list /etc/apt/
+
+# RUN：容器构建时需要运行的命令
+# 安装服务 -y 安装过程会出现问答 用-y 默认yes
+RUN apt-get update -y
+RUN apt-get install wget -y
+RUN apt-get install unzip -y
+RUN apt install sudo -y
+RUN apt install curl -y
+RUN apt install bash -y
+
+# 安装BT-Panel linux shell 自动输入y/yes方法：echo y | bash install.sh
+RUN wget -O install.sh http://download.bt.cn/install/install-ubuntu_6.0.sh && sudo echo y|bash install.sh
+
+# 当前容器对外暴露的端口
+EXPOSE 80
+
+# 未用到的其他命令说明
+# ENV：用来在构建过程中设置环境变量（ENV MY_PATH /usr/data 这个环境变量可以在后续的任何RUN指令中使用，
+#      如同在命令前指定了环境变量前缀一样；也可以在其他指令中直接使用这些环境变量。比如：WORKDIR $MY_PATH）
+# VOLUME：容器数据卷，用于数据保存和持久化工作
+# CMD：指定一个容器启动时要运行的命令；Dockerfile中可以有多个CMD指令，但只有最后一个生效，
+#      CMD会被docker run 之后的参数替换
+# ENTRYPOINT：指定一个容器启动时要运行的命令；ENTRYPOINT目的和CMD一样，都是在指定容器启动程序及参数，
+#             追加 docker run 之后的参数
+# ONBUILD：当构建一个被继承的Dockerfile时运行命令，父镜像在被子镜像继承后，父镜像的ONBUILD被触发
+```
+
+RUN 和 CMD 的区别：
+
+- `RUN`：构建镜像时运行的指令
+- `CMD`：运行容器时运行的指令
+
+进入到 Dockerfile 的目录：
+
+```bash
+cd /mnt/BT
+```
+
+复制 `sources.list` 到当前目录：
+
+```bash
+cp /etc/apt/sources.list /mnt/BT
+```
+
+使用命令构建“BT-Panel”镜像：
+
+```bash
+docker build -t bt-panel .
+```
+
+`sources.list` 内容：
+
+```text
+deb http://archive.ubuntu.com/ubuntu bionic main
+deb http://archive.ubuntu.com/ubuntu bionic-security main
+#deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+# deb-src [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+deb http://archive.ubuntu.com/ubuntu bionic-updates main
+
+deb http://us.archive.ubuntu.com/ubuntu/ bionic main restricted
+deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates main restricted
+deb http://us.archive.ubuntu.com/ubuntu/ bionic universe
+deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates universe
+deb http://us.archive.ubuntu.com/ubuntu/ bionic multiverse
+deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates multiverse
+deb http://us.archive.ubuntu.com/ubuntu/ bionic-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu bionic-security main restricted
+deb http://security.ubuntu.com/ubuntu bionic-security universe
+deb http://security.ubuntu.com/ubuntu bionic-security multiverse
+```
+
+参考文章：
+
+- [https://www.freebuf.com/company-information/177428.html](https://www.freebuf.com/company-information/177428.html)
+- [https://blog.csdn.net/u013431141/article/details/81612523](https://blog.csdn.net/u013431141/article/details/81612523)
+- [https://blog.csdn.net/qq_36748414/article/details/81636449](https://blog.csdn.net/qq_36748414/article/details/81636449)
