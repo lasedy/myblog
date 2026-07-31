@@ -1,0 +1,171 @@
+---
+title: "构建多层多颜色的HTML/CSS进度条"
+description: "使用 HTML 和 CSS 由浅入深地实现多层、多颜色的进度条：从单层多色起步，逐步加入底层背景色、表层进度色，再到标尺线，最后抽出 CSS 样式让结构更易维护。"
+publishDate: 2023-09-06
+read: 4
+tags: ["HTML", "CSS", "进度条", "前端", "教程"]
+img: "/assets/progress-bar-cover.jpg"
+img_alt: "HTML 多颜色进度条封面：纯 HTML+CSS 实现，支持响应式、可自定义，涵盖多种场景与配色"
+featured: false
+---
+
+# 构建多层多颜色的HTML/CSS进度条
+
+![文章概览](/assets/progress-bar-01-overview.png)
+
+文章展示了如何使用 HTML 和 CSS 创建具有不同颜色层次的进度条，从基础的单层进度条开始，逐步改进：添加了底层背景颜色，然后增加了标尺线，最后通过提取 CSS 样式进行优化，使其更易于维护。
+
+## 先上效果图
+
+![效果图](/assets/progress-bar-02-effect.png)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>多颜色进度条</title>
+</head>
+<body>
+  <div style="width: 300px; height: 20px; background-color: #eee; border-radius: 10px; overflow: hidden;">
+    <div style="height: 100%;">
+      <div style="width: 30%; background-color: #00ffce; height: 100%; float: left;"></div>
+      <div style="width: 20%; background-color: #ffc02f; height: 100%; float: left;"></div>
+      <div style="width: 40%; background-color: #fff2cf; height: 100%; float: left;"></div>
+      <div style="width: 10%; background-color: #fde0e2; height: 100%; float: left;"></div>
+    </div>
+  </div>
+</body>
+</html>
+```
+
+## 首次改进后
+
+底层背景颜色
+
+![底层背景颜色](/assets/progress-bar-03-first-bg.png)
+
+用于表层进度的颜色
+
+![用于表层进度的颜色](/assets/progress-bar-04-first-surface.png)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>多层多颜色进度条</title>
+</head>
+<body>
+  <div style="width: 300px; height: 20px; background-color: #eee; border-radius: 10px; overflow: hidden;">
+    <div style="height: 100%; position: relative;">
+      <!-- 第一层进度条 -->
+      <div style="width: 20%; background-color: #d4ffec; height: 100%; position: absolute;"></div>
+      <div style="width: 60%; background-color: #fff2cf; height: 100%; position: absolute; left: 20%;"></div>
+      <div style="width: 20%; background-color: #fde0e2; height: 100%; position: absolute; left: 80%;"></div>
+      
+      <!-- 第二层进度条 -->
+      <div style="width: 20%; background-color: #00ffce; height: 100%; position: absolute;"></div>
+      <div style="width: 60%; background-color: #ffc02f; height: 100%; position: absolute; left: 20%;"></div>
+      <div style="width: 20%; background-color: #ff5733; height: 100%; position: absolute; left: 80%;"></div>
+    </div>
+  </div>
+</body>
+</html>
+```
+
+## 二次改进
+
+增加标尺线
+
+![增加标尺线](/assets/progress-bar-05-ruler.png)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>多层多颜色进度条</title>
+</head>
+<body>
+  <div style="width: 300px; height: 25px; background-color: #eee; border-radius: 10px; overflow: hidden;">
+	<div style="height: 100%; position: relative;">
+      <!-- 第一层进度条 -->
+      <div style="width: 20%; background-color: #d4ffec; height: 100%; position: absolute;"></div>
+      <div style="width: 60%; background-color: #fff2cf; height: 100%; position: absolute; left: 20%;"></div>
+      <div style="width: 20%; background-color: #fde0e2; height: 100%; position: absolute; left: 80%;"></div>
+      
+      <!-- 第二层进度条 -->
+      <div style="width: 20%; background-color: #00ffce; height: 100%; position: absolute;"></div>
+      <div style="width: 60%; background-color: #ffc02f; height: 100%; position: absolute; left: 20%;"></div>
+      <div style="width: 20%; background-color: #ff5733; height: 100%; position: absolute; left: 80%;"></div>
+    </div>
+    <div style="width: 2px; height: 34px; background-color: transparent; position: absolute; left: 7%; top: 0; margin-top: 4px; border-left: 2px dashed red; z-index: 1;"></div>
+    
+  </div>
+</body>
+</html>    
+```
+
+## 提取 CSS 样式后
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>多层多颜色进度条</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+  <div class="progress-container">
+    <div class="progress-bar">
+      <!-- 第一层进度条 -->
+      <div class="progress-layer" style="width: 20%; background-color: #d4ffec;"></div>
+      <div class="progress-layer" style="width: 60%; background-color: #fff2cf; left: 20%;"></div>
+      <div class="progress-layer" style="width: 20%; background-color: #fde0e2; left: 80%;"></div>
+      
+      <!-- 第二层进度条 -->
+      <div class="progress-layer" style="width: 20%; background-color: #00ffce;"></div>
+      <div class="progress-layer" style="width: 60%; background-color: #ffc02f; left: 20%;"></div>
+      <div class="progress-layer" style="width: 20%; background-color: #ff5733; left: 80%;"></div>
+    </div>
+    <div class="dashed-line"></div>
+  </div>
+</body>
+</html>
+```
+
+```css
+/* styles.css */
+.progress-container {
+  width: 300px;
+  height: 25px;
+  background-color: #eee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  position: relative;
+}
+
+.progress-layer {
+  height: 100%;
+  position: absolute;
+}
+
+/* 垂直虚线样式 */
+.dashed-line {
+  width: 2px;
+  height: 34px;
+  background-color: transparent;
+  position: absolute;
+  left: 7%;
+  top: 0;
+  margin-top: 4px;
+  border-left: 2px dashed red;
+  z-index: 1;
+}
+```
+
+---
+
+> 本文首发于 CSDN（账号 lasedy3），此处为同步备份。
