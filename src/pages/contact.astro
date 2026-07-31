@@ -1,0 +1,31 @@
+---
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout
+  title="联系我 — 脆骨的测试空间"
+  description="通过邮件与我交流技术、文章纠错或聊聊猫咪。"
+>
+  <section class="relative z-20 container mx-auto my-12 px-7 lg:px-0 max-w-3xl">
+    <h1 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
+      联系我
+    </h1>
+    <div class="mt-8 space-y-5 text-base leading-7 text-neutral-700 dark:text-neutral-300">
+      <p>欢迎随时与我交流，无论是技术讨论、文章纠错，还是单纯想聊聊猫咪。</p>
+
+      <div class="rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-6">
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">电子邮件</p>
+        <a
+          href="mailto:gristle@example.com"
+          class="mt-1 inline-block text-lg font-medium text-primary dark:text-primary-light"
+        >gristle@example.com</a>
+        <p class="mt-2 text-xs text-neutral-400">（占位邮箱，请替换为你自己的真实邮箱）</p>
+      </div>
+
+      <p>
+        也欢迎订阅本站的 <a href="/rss.xml" class="text-primary underline underline-offset-2">RSS</a>
+        第一时间获取更新。
+      </p>
+    </div>
+  </section>
+</Layout>

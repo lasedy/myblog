@@ -1,1 +1,6 @@
-[{"name": "博客", "url": "/blog"}]
+[
+  {"name": "博客", "url": "/blog"},
+  {"name": "关于", "url": "/about"},
+  {"name": "联系", "url": "/contact"},
+  {"name": "隐私", "url": "/privacy"}
+]
