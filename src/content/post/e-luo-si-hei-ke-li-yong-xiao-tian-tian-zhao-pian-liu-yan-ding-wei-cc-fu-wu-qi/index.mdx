@@ -1,0 +1,11 @@
+---
+title: '俄罗斯黑客利用小甜甜照片留言定位 CC 服务器'
+description: '一个俄语 APT 组织 Turla 被发现使用了巧妙的方法隐藏痕迹，通过小甜甜布兰妮官方 Instagram 账号上的一个留言获得指令控制服务器的路径。'
+publishDate: 2017-06-08
+tags: [新闻]
+featured: false
+---
+
+![bitly_stats](/assets/e-luo-si-hei-ke-li-yong-xiao-tian-tian-zhao-pian-liu-yan-ding-wei-cc-fu-wu-qi-1.png)
+
+一个俄语 ATP 组织 Turla 被发现使用了巧妙的方法隐藏痕迹。Turla 主要针对政府机构、大使馆、军方、研究机构和制药公司窃取敏感信息，其同名恶意程序能感染 Windows 和 Linux，它的 Linux 模块大量使用了开源的静态链接库，曾被发现劫持卫星链路与指令控制中心通信。根据安全公司 Eset 研究人员的最新报告，Turla 发布了一个含有后门的 Firefox 扩展，使用一个 bit.ly 缩址访问指令控制中心获取指令，但扩展代码中没有发现网址路径，它是通过小甜甜布兰妮官方 Instagram 账号上的一个留言获得指令控制服务器的路径。扩展会检查小甜甜每一张照片下的留言，计算一个定制的哈希值，如果哈希值匹配，它会运行正则表达式得到 bit.ly 缩址。
