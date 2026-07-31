@@ -1,0 +1,106 @@
+---
+title: "没使用docker-compose的容器如何修改自启动程序？"
+description: "手动修改非 docker-compose 管理的 Docker 容器自启动程序，以禅道 zbox 容器为例记录完整操作流程。"
+publishDate: 2026-07-31
+read: 5
+tags: ["Docker", "容器", "自启动", "禅道", "zbox"]
+img: "/assets/mei-shi-yong-docker-composede-rong-qi-ru-he-xiu-gai-zi-qi-dong-cover.jpg"
+img_alt: "没使用docker-compose的容器如何修改自启动程序"
+featured: true
+---
+
+由于项目原因，使用的是禅道一键安装包“ZenTaoPMS.11.5.stable.zbox_old.64.tar”。
+
+在用 Docker 重建该环境时，使用了 Ubuntu 镜像来复刻。发现使用 Ubuntu 自启动的方法并不能启动 `/opt/zbox/zbox start`。
+
+遂查了半天资料，参考 Tomcat 容器的自启动方式，最终自己摸索出解决办法，在此作个记录。
+
+## 1. 创建启动脚本
+
+首先第一步创建 `zbox.sh` 脚本来启动 zbox：
+
+```bash
+#!/usr/bin/env bash
+/opt/zbox/zbox start
+/bin/bash
+```
+
+第二行是我们启动 zbox 的命令。
+
+第三行作用是 Docker 后台必须运行一个进程，否则容器就会退出。
+
+我在所有都配置好的情况下缺少了这一步，在查看容器运行日志后，发现运行结果如下图后立马关闭了容器。判断是缺少运行的进程。但一开始没想到在脚本上加入，导致浪费不少时间。
+
+```
+Start Apache success
+Start Mysql success
+```
+
+## 2. 将脚本放入容器 PATH
+
+上传 sh 脚本到容器的 path 目录里。在容器创建时，可以映射目录。复制到自己的映射目录去，再进入容器移动到 path 目录里即可。
+
+通过命令 `docker inspect 容器id` 得到的返回结果中找到 `ResolvConfPath` 对应的值：
+
+![docker inspect 查看 ResolvConfPath](/assets/mei-shi-yong-docker-composede-rong-qi-ru-he-xiu-gai-zi-qi-dong-1.png)
+
+这里我们只需要到最后那层目录即可，在这个目录下找到容器的 `config.v2.json` 文件。
+
+通过 `vim`、`cat` 查看找到下图 path 路径，取其中一个即可。这里我使用了 `/usr/local/bin` 路径，将 `zbox.sh` 放到了 `/usr/local/bin` 目录下：
+
+![容器 PATH 路径选择](/assets/mei-shi-yong-docker-composede-rong-qi-ru-he-xiu-gai-zi-qi-dong-2.png)
+
+## 3. 修改 config.v2.json
+
+操作完前面两步骤需要停掉对应的容器，并对 `config.v2.json` 进行编辑：
+
+```bash
+vim config.v2.json
+```
+
+这里不停掉容器的话，保存后再停会被容器覆盖掉编辑后的内容。
+
+需要修改的地方，将：
+
+```json
+    "Path":"/bin/bash",
+    "Args":[
+
+    ]
+```
+
+改成：
+
+```json
+    "Path":"zbox.sh",
+    "Args":[
+        "run"
+    ]
+```
+
+将：
+
+```json
+"Cmd":[
+            "/bin/bash"
+        ],
+```
+
+改成：
+
+```json
+"Cmd":[
+            "zbox.sh",
+            "run"
+        ],
+```
+
+![修改 config.v2.json](/assets/mei-shi-yong-docker-composede-rong-qi-ru-he-xiu-gai-zi-qi-dong-3.png)
+
+## 4. 重启 Docker 服务
+
+保存并退出后，重启 Docker 服务就能看到容器自启动并启动程序。
+
+---
+
+[原文传送门](http://192.168.1.184:2368/mei-shi-yong-docker-composede-rong-qi-ru-he-xiu-gai-zi-qi-dong/)
