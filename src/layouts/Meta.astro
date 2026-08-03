@@ -17,6 +17,8 @@ const {
   ogImage = "/og.jpg",
   twitterHandle = siteConfig.social.twitterName || '',
 } = Astro.props;
+
+const ogImageFull = ogImage.startsWith('http') ? ogImage : `${siteConfig.url}${ogImage}`;
 ---
 
 <!-- Meta Tags -->
@@ -24,6 +26,7 @@ const {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/svg+xml" href="/favicon.png" />
 <title>{title}</title>
+<link rel="canonical" href={url} />
 <meta name="description" content={description} />
 <meta name="keywords" content={keywords} />
 <meta name="author" content={siteConfig.author} />
@@ -34,13 +37,23 @@ const {
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description} />
 <meta property="og:url" content={url} />
-<meta property="og:image" content={ogImage} />
+<meta property="og:image" content={ogImageFull} />
 <meta property="og:site_name" content={title} />
 
 <!-- Twitter Meta Tags -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content={title} />
 <meta name="twitter:description" content={description} />
-<meta name="twitter:image" content={ogImage} />
+<meta name="twitter:image" content={ogImageFull} />
 <meta name="twitter:site" content={twitterHandle} />
 <meta name="twitter:creator" content={twitterHandle} />
+
+<!-- Structured Data -->
+<script type="application/ld+json" set:html={JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": siteConfig.title,
+  "url": url,
+  "description": description,
+  "inLanguage": "zh-CN"
+})}/>

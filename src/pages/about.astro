@@ -1,11 +1,11 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-const updatedAt = "2026-08-01";
+const updatedAt = "2026-08-03";
 ---
 
 <Layout
-  title="关于我 — 脆骨的测试空间"
-  description="我是 Gristle（爱猫咪的脆骨），这里记录技术折腾、生活日常与猫咪相伴的点滴。"
+  title="关于我 — 服务器、Docker 与 NAS 实战笔记｜脆骨的测试空间"
+  description="关于我：爱猫咪的脆骨，长期折腾服务器、Docker、群晖 NAS 与各类自托管服务。本站分享真实可用的实战笔记、排错经验与工具评测，也记录生活与猫咪相伴的点滴。"
 >
   <section class="relative z-20 container mx-auto my-12 px-7 lg:px-0 max-w-3xl">
     <h1 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
@@ -13,12 +13,22 @@ const updatedAt = "2026-08-01";
     </h1>
     <div class="mt-8 space-y-5 text-base leading-7 text-neutral-700 dark:text-neutral-300">
       <p>
-        你好，我是 <strong class="font-semibold text-neutral-900 dark:text-white">Gristle</strong>，你也可以叫我「爱猫咪的脆骨」。欢迎来到我的个人小站。
+        你好，我是 <strong class="font-semibold text-neutral-900 dark:text-white">Gristle</strong>，你也可以叫我「爱猫咪的脆骨」。欢迎来到我的个人小站「脆骨的测试空间」。
       </p>
-      <p>这里是我记录生活与学习的地方。我会分享：</p>
+      <p>
+        这里是我的技术笔记与生活记录。与那些只转述文档的博客不同，下面这些内容大多是我<strong class="font-semibold">亲手踩坑、实测后再写下的总结</strong>——能跑通的才发出来。
+      </p>
+
+      <h2 class="mt-4 text-xl font-semibold text-neutral-900 dark:text-white">我主要折腾什么</h2>
       <ul class="list-disc space-y-2 pl-6">
         <li>
-          <strong class="font-semibold">技术折腾</strong>：服务器、Docker、群晖 NAS、自托管服务等实战笔记，大多是我亲手踩坑后的总结。
+          <strong class="font-semibold">服务器与 Docker</strong>：从 Dockerfile 构建镜像、docker-compose 自启管理，到把服务跑在群晖 NAS 上。例如 <a href="/blog/synology-docker-aliyun-ddns/" class="text-primary underline underline-offset-2">群晖 Docker 配合阿里云 DDNS</a> 和 <a href="/blog/centos-dockerfile-bt-panel/" class="text-primary underline underline-offset-2">CentOS 下用 Dockerfile 构建宝塔镜像</a> 都是实打实的操作记录。
+        </li>
+        <li>
+          <strong class="font-semibold">自托管服务</strong>：用开源工具搭自己的网盘、远程桌面、地图 API 等。比如 <a href="/blog/install-browserbox/" class="text-primary underline underline-offset-2">用 BrowserBox 部署私有浏览器</a>、<a href="/blog/installing-guacamole-with-docker/" class="text-primary underline underline-offset-2">用 Guacamole 做 web 远程桌面</a>。
+        </li>
+        <li>
+          <strong class="font-semibold">网络与镜像</strong>：内网穿透、Red Hat / CentOS 镜像源替换等运维杂活，见 <a href="/blog/redhat9-centos-mirror/" class="text-primary underline underline-offset-2">Red Hat 9 / CentOS 镜像源配置</a>。
         </li>
         <li>
           <strong class="font-semibold">生活日常</strong>：一些随手记下的日常与碎碎念。
@@ -27,10 +37,13 @@ const updatedAt = "2026-08-01";
           <strong class="font-semibold">猫咪相伴</strong>：和家里猫咪相处的点滴。
         </li>
       </ul>
+
+      <h2 class="mt-4 text-xl font-semibold text-neutral-900 dark:text-white">关于内容版权</h2>
       <p>
         本站原创内容均为个人经验分享；转载文章会注明出处。如果某篇文章对你有帮助，或者你有更好的做法，欢迎通过
         <a href="/contact" class="text-primary underline underline-offset-2">联系页</a> 告诉我。
       </p>
+
       <p class="text-sm text-neutral-500 dark:text-neutral-400">最后更新：{updatedAt}</p>
     </div>
   </section>

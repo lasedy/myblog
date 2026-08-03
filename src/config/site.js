@@ -1,12 +1,12 @@
 // Get site URL from environment variable, use default value if not set
 // Note: Please set the correct PUBLIC_SITE_URL in .env file after first deployment
-const SITE_URL = import.meta.env.PUBLIC_SITE_URL || 'https://ricoui.com';
+const SITE_URL = import.meta.env.PUBLIC_SITE_URL || 'https://unil.cn';
 
 export const siteConfig = {
 	title: "RicoFast",
 	author: "RicoUI",
 	url: SITE_URL,
-	mail: "hello@ricoui.com",
+	mail: "999unil@gmail.com",
 	utm: {
 		source: `${SITE_URL}`,
 		medium: "referral",
