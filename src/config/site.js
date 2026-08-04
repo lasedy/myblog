@@ -3,8 +3,8 @@
 const SITE_URL = import.meta.env.PUBLIC_SITE_URL || 'https://unil.cn';
 
 export const siteConfig = {
-	title: "RicoFast",
-	author: "RicoUI",
+	title: "Gristle",
+	author: "Gristle",
 	url: SITE_URL,
 	mail: "999unil@gmail.com",
 	utm: {
@@ -13,9 +13,9 @@ export const siteConfig = {
 		campaign: "navigation",
 	},
 	meta:{
-		title: "RicoFast — 设计优先的 Astro SaaS 模板",
-		description: "一个关于技术、生活与猫咪的个人空间。",
-		keywords: "saas template, astro template, tailwind template, startup website, landing page, indie hacker",
+		title: "脆骨的测试空间 — Gristle｜AI 应用与本地化部署",
+		description: "学习与 AI 共存。分享 AI 应用落地、本地大模型部署（LLaMA/Qwen/Gemma）、向量数据库、RAG 架构、Agent 开发、Ollama、NAS 自托管与 Linux 运维的保姆级实战教程。",
+		keywords: "AI 应用, 本地大模型, LLM 部署, 向量数据库, RAG, Agent, Ollama, NAS, Docker, 群晖, Linux 运维, 自托管, AI 工具链, 私有化部署, 自动化运维, Astro 博客",
 		image: `${SITE_URL}/og.jpg`,
 		twitterHandle: "",
 	},
