@@ -1,1 +1,16 @@
-/usr/bin/bash: line 1: nohup: command not found
+
+> ricoui-saas-template@1.0.0 dev
+> astro dev --port 5200
+
+[vite] connected.
+[2m17:58:58[22m [34m[types][39m Generated [2m2ms[22m
+[vite] connected.
+[2m17:58:58[22m [34m[content][39m Syncing content
+[33m[1m17:58:59[22m [WARN] [glob-loader][39m The base directory "E:\work\my-blog\src\content\changelog\" does not exist.
+[2m17:58:59[22m [34m[content][39m Synced content
+[2m17:58:59[22m [34m[vite][39m Port 5200 is in use, trying another one...
+[2m17:58:59[22m [34m[vite][39m Port 5201 is in use, trying another one...
+[42m[1m astro [22m[49m [32mv6.4.8[39m [2mready in[22m 1970 [2mms[22m
+[2m┃[22m Local    [36mhttp://localhost:5202/[39m
+[2m┃[22m Network  [2muse --host to expose[22m
+[2m17:58:59[22m [32mwatching for file changes...[39m
