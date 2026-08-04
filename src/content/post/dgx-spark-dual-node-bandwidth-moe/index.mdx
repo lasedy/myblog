@@ -1,0 +1,114 @@
+---
+title: "DGX Spark 双机互联深度解析：200G 带宽是不是瓶颈？MoE 推理为什么反而提速？"
+description: "基于 NVIDIA 官方论坛与文档的调研：DGX Spark 单机 vs 双机的真实区别、ConnectX-7 200Gb/s 能否聚合、网卡带宽是否成为新短板，以及 DeepSeek V4 Flash 0731 双机部署实测提速 3 倍的机制分析。"
+publishDate: 2026-08-04
+read: 10
+tags: ["DGX Spark", "LLM", "MoE", "集群", "本地部署"]
+img: "/assets/dgx-qwen36-fp8-cover.jpg"
+img_alt: "DGX Spark 双机互联带宽分析"
+featured: false
+---
+
+## 写在前面
+
+入手 DGX Spark（GB10, 128GB 统一内存）之后，一个绕不开的问题是：**要不要买第二台组双机？** 官方宣传"两台直连可跑 405B 模型"，但背面的 ConnectX-7 只有 200Gb/s（≈25GB/s），而单机内存带宽是 273 GB/s——网卡比内存慢 11 倍，短板是不是从内存转移到了网卡？
+
+带着这个问题把 NVIDIA 官方论坛（DGX Spark / GB10 版块）和官方文档翻了一遍，再结合 DeepSeek V4 Flash 0731（2026-07-31 开源）的双机实测数据，结论比想象中更有意思：**双机对稠密模型是"扩容不提速"，对 MoE 模型却是"扩容又提速"**。本文把调研结果完整记录如下。
+
+---
+
+## 1. 一台 vs 两台：区别到底在哪
+
+核心区别是**内存容量翻倍，而不是变成一台更快的机器**：
+
+| 维度 | 单机 | 双机（官方验证拓扑） |
+|---|---|---|
+| 统一内存 | 128GB | 256GB（两台简单相加，非统一寻址） |
+| FP4 推理上限 | ~230B 参数 | ~405B–470B 参数 |
+| LoRA 微调 | ~210B | ~430B |
+| 全量微调 | ~14B | ~26B |
+| 算力 | 1 PFLOPS FP4 稀疏 | 2 PFLOPS（靠网络协同，非无缝） |
+
+NVIDIA 的官方定位很明确：双机解决的是"**单机装不下的模型能跑**"，不是"跑得更快"。官方 Cluster Assistant 支持 2–4 台组网（4 台必须走交换机）。
+
+## 2. 两台能聚合带宽吗？——不能
+
+这是网上误解最多的地方，三点澄清：
+
+1. **线缆标 400G ≠ 机器能跑 400G**。官方文档原话："Connecting two devices with two cables will not improve performance"（两台之间插两根线不提升性能）。
+2. **硬件根因**：ConnectX-7 是通过 2 条 PCIe Gen5 x4（各约 100Gb/s）接入 GB10 SoC 的，SoC 给不出更宽的 PCIe 通道，**整机出口 200Gb/s 是物理硬顶**。
+3. **两个 QSFP 口的意义是拓扑灵活性**（一口连另一台 Spark、另一口连 NVMe-oF 存储或交换机），不是叠加带宽。
+
+论坛上甚至有人发帖问"能否加第二个 CX-7 口串联更多 Spark"，NVIDIA 员工回复：超过两台请走兼容 QSFP 的以太网交换机。
+
+## 3. 25 GB/s vs 273 GB/s：短板确实转移了
+
+算术很直白：200 Gb/s ÷ 8 = **25 GB/s**，对比单机内存带宽 **273 GB/s**，差约 11 倍。还有俩加重因素：
+
+- 扣除 RDMA 协议开销，实测有效带宽只有 **~20–23 GB/s**；
+- **GB10 不支持 GPUDirect RDMA**，跨节点 NCCL 要走主机内存 bounce buffer 中转，进一步打折。
+
+但短板是否致命，**取决于并行方式**：
+
+- **Pipeline 并行 / MoE 推理**：跨节点只传每层激活值（KB~MB 级），25 GB/s 基本够用；
+- **Tensor 并行（稠密模型）**：每层 all-reduce，通信密集，网卡明显拖后腿；
+- **全量微调/训练**：梯度同步是海量通信，25 GB/s 是真瓶颈。论坛理论估算：单机 10B 全量微调 ~3.3 小时/epoch，双机 26B ~6.1 小时/epoch——能跑，但扩展效率远非线性。
+
+一句话：**对训练和稠密模型 TP，双机是"内存扩容方案"，不是"性能扩展方案"。**
+
+## 4. MoE 推理：情况反转了
+
+MoE 模型每 token 只激活一小部分专家，**每 token 的内存读取量和活跃参数成正比，和总参数无关**：
+
+- 稠密模型 decode 速度上限 ≈ 内存带宽 ÷ 模型总大小。128GB 稠密模型在 Spark 上：273 ÷ 128 ≈ **2 tok/s 封顶**；
+- MoE 模型（如 400B 总参、30B 活跃）每 token 只读活跃权重约 15–20GB，decode 速度向"30B 稠密模型"看齐——**273 GB/s 的低带宽短板对 MoE 基本隐身**。
+
+这就是论坛 "Why 273 GB/s? Less Is More" 一帖的核心观点：Spark 的 LPDDR5X 带宽弱点，在 MoE 场景下几乎无关。实测 4 台 Spark 跑 GLM-4.7（FP8 MoE）能到 ~25 tok/s，同参数量的稠密模型在这平台上根本不可行。
+
+## 5. DeepSeek V4 Flash 0731：双机提速 3 倍的实证
+
+2026-07-31 开源的 **DeepSeek-V4-Flash-0731**（MoE，仅 13B 活跃参数，FP8 约 70GB）成了最佳验证案例，多个独立来源的实测互相印证：
+
+| 部署方式 | decode 速度 |
+|---|---|
+| 单机 DGX Spark | 12–15 tok/s |
+| 双机 TP=2 | **41 tok/s**（1M 上下文） |
+| 双机 + DSpark 投机解码 | **78 tok/s 峰值，~55 常态** |
+
+提速机制有三层叠加：
+
+1. **内存带宽聚合（主因）**。decode 是内存带宽瓶颈型任务。双机 TP=2 + 专家并行后，每个节点只存一半专家和一半 KV cache，每 token 各读一半 → 有效内存带宽接近翻倍。注意这和"网卡带宽不可聚合"不矛盾——网卡不能聚合，但两台机器**各自的内存带宽**是两个资源池。
+2. **MoE 让网卡瓶颈隐身**。跨节点只传激活值不传权重，25 GB/s 链路站得住，带宽翻倍的红利能真正兑现。反例：有人实测稠密的 Qwen3.5-122B 双机超过 256K 上下文后从 40 掉到 15 t/s，互联饱和。
+3. **投机解码叠加**。MTP/DSpark 推测解码再贡献 1.5–2 倍。
+
+两个隐藏变量也要看到：
+
+- **1M 上下文本身就是双机才能给的**（FP8 KV cache 约需 30GB，单机装完 70GB 权重放不下）——容量红利和速度红利是绑定的；
+- **有坑**：vLLM 的 DSpark draft loader 会静默丢弃 12 个 tensor，直接换 0731 官方权重会速度腰斩而输出质量不变（极具迷惑性），需打 Patch 4；`NCCL_SOCKET_IFNAME` 必须显式指定，否则每个请求先卡 45 秒超时。
+
+## 6. 结论：修正后的完整判断
+
+| 场景 | 双机价值 |
+|---|---|
+| 稠密模型推理 | 仅扩容，无速度红利（跨机 all-reduce 吃掉收益） |
+| **MoE 模型推理** | **扩容 + decode 提速 1.5–3 倍**（带宽聚合 + 投机解码） |
+| 训练 / 全量微调 | 受 25 GB/s 互联制约，扩展效率差 |
+
+对选型的实际建议：
+
+1. 主力跑 MoE 推理（Qwen3.6-35B-A3B、DeepSeek V4 Flash 这类活跃参数小的模型）是发挥 Spark 价值的最优解；
+2. 要不要买第二台，先问一个问题：目标模型量化后是否超过单机 ~110GB 可用内存？超过就必须双机；
+3. 如果跑的是 DS V4 Flash 这类"单机装得下但上下文/速度受限"的 MoE，双机依然有实打实的速度红利——这是我调研前没想到的。
+
+---
+
+## 参考来源
+
+- [NVIDIA 论坛：Any plans to add a second Connect-X7 port to serial stack multiple DGX Spark clusters?](https://forums.developer.nvidia.com/t/any-plans-to-add-a-second-connect-x7-port-to-serial-stack-multiple-dgx-spark-clusters/344395)
+- [NVIDIA 论坛：Why 273 GB/s? Less Is More, Until It Isn't](https://forums.developer.nvidia.com/t/why-273-gb-s-less-is-more-until-it-isn-t/359555/5)
+- [NVIDIA 论坛：Two DGX Sparks over the ConnectX-7 direct link — 实测报告](https://forums.developer.nvidia.com/t/two-dgx-sparks-over-the-connectx-7-direct-link-setup-notes-throughput-numbers-and-two-questions-federated-vs-cluster-telemetry/376298)
+- [NVIDIA 论坛：Serving MiniMax-M3 cross-node on 2× DGX Spark](https://forums.developer.nvidia.com/t/serving-minimax-m3-vision-long-context-cross-node-on-2x-dgx-spark-gb10-sm-121/373819/1)
+- [NVIDIA 官方文档：Cluster Assistant for Multi-Node DGX Spark](https://docs.nvidia.com/sync/latest/cluster-assistant.html)
+- [NVIDIA 官方 Playbook：Connect Two Sparks](https://build.nvidia.com/spark/connect-two-sparks/stacked-sparks)
+- [GitHub：DeepSeek V4 Flash 0731 双机 1M 上下文 recipe（含 Patch 4）](https://github.com/tonyd2wild/DeepSeek-v4-Flash-0731-DSpark-1M-NVFP4-KV-2x-DGX-Spark)
+- [StorageReview：NVIDIA DGX Spark Cluster 分布式推理评测](https://www.storagereview.com/review/nvidia-dgx-spark-cluster-review-distributed-inference-on-dell-gigabyte-and-hp)

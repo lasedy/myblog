@@ -39,3 +39,12 @@ Thumbs.db
 
 # dev runtime log
 _dev.log
+
+# Local batch scripts (not for version control)
+*.bat
+*.cmd
+
+# Local utility scripts
+git-push.bat
+kill-5200.bat
+run.bat
