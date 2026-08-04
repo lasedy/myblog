@@ -71,3 +71,17 @@
     at async Object.rename (node:internal/fs/promises:784:10)
     [...] See full stack trace in the browser, or rerun with --verbose.[22m
 [2m12:15:46[22m [34m[glob-loader][39m Reloaded data from [32mdgx-spark-docker-qwen3-6-35b-a3b-fp8/index.mdx[39m
+[2m12:15:58[22m [34m[200][39m /blog/dgx-spark-docker-qwen3-6-35b-a3b-fp8 [2m294ms[22m
+[2m14:14:09[22m [34m[glob-loader][39m Reloaded data from [32mdgx-spark-docker-qwen3-6-35b-a3b-fp8/index.mdx[39m
+[31m[1m14:14:09[22m [ERROR][39m [31m[UnknownFilesystemError][39m 
+  [1mHint:[22m
+[33m    It can be caused by many things, eg. missing permissions or a file not existing we attempt to read. Check the error cause for more details.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unknown-filesystem-error/[24m[39m
+  [1mStack trace:[22m
+[2m    at E:\work\my-blog\node_modules\astro\dist\content\mutable-data-store.js:367:13
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+  [1mCaused by:[22m
+[2m  EPERM: operation not permitted, rename 'E:\work\my-blog\.astro\data-store.json.tmp' -> 'E:\work\my-blog\.astro\data-store.json'
+    at async Object.rename (node:internal/fs/promises:784:10)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
