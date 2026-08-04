@@ -1,0 +1,238 @@
+---
+title: "DGX Spark 上用 Docker 部署 Qwen3.6-35B-A3B-FP8，附 llama-benchy 测速结果"
+description: "在 NVIDIA DGX Spark（GB10, 128GB 统一内存）上用 Docker 部署 Qwen3.6-35B-A3B-FP8 大模型，包含完整的 Docker Compose 配置和 llama-benchy 基准测试报告。"
+publishDate: 2026-08-04
+read: 8
+tags: ["DGX Spark", "Docker", "LLM", "Qwen", "vLLM", "本地部署"]
+img: "/assets/dgx-qwen36-fp8-cover.jpg"
+img_alt: "DGX Spark 部署 Qwen3.6-35B-A3B-FP8"
+featured: true
+---
+
+## 写在前面
+
+2026 年 7 月新购入 **NVIDIA DGX Spark（GB10 芯片, sm_121a, 128GB 统一内存）**，目标场景是本地 LLM 推理。这篇记录如何在上面用 Docker + vLLM 部署 **Qwen3.6-35B-A3B-FP8**（含 DFlash 推测解码），并附上 llama-benchy 基准测试结果。
+
+> 本文使用的镜像：`ghcr.io/aeon-7/aeon-vllm-ultimate:latest`，基于 vLLM 0.25.1 + DFlash 推测解码 + FP8/NVFP4 KV Cache 优化。
+
+---
+
+## 1. 环境准备
+
+### 1.1 硬件
+
+| 项目 | 规格 |
+|------|------|
+| 芯片 | NVIDIA GB10 (Grace Blackwell, sm_121a) |
+| 内存 | 128GB LPDDR5X 统一内存 |
+| 存储 | /mnt/Docker/aeon-vllm/models/（挂载路径） |
+
+### 1.2 模型文件
+
+需要准备两个模型目录：
+
+- **主模型**：Qwen3.6-35B-A3B-FP8（FP8 权重的 35B 参数模型）
+- **草稿模型**：Qwen3.6-35B-A3B-DFlash（DFlash 推测解码用的草稿模型）
+
+模型存放路径（宿主机）：
+```
+/mnt/Docker/aeon-vllm/models/Qwen3.6/35B-FP8/Qwen3.6-35B-A3B-FP8/
+/mnt/Docker/aeon-vllm/models/Qwen3.6/35B-FP8/Qwen3.6-35B-A3B-DFlash/
+```
+
+---
+
+## 2. Docker Compose 配置
+
+完整 `docker-compose.yml`：
+
+```yaml
+name: aeon-vllm
+
+services:
+  aeon-vllm:
+    image: ghcr.io/aeon-7/aeon-vllm-ultimate:latest
+    container_name: aeon-vllm
+    restart: unless-stopped
+    network_mode: host
+    ipc: host
+    shm_size: 16g
+    entrypoint: vllm
+    environment:
+      - VLLM_MARLIN_USE_ATOMIC_ADD=1    # FP8 Marlin 原子加法，35B-A3B-FP8 必需
+      - VLLM_USE_FLASHINFER_SAMPLER=1   # AEON 推荐采样器
+      - HF_HUB_OFFLINE=1                # 全本地模型
+      - FI_NUM_COMPILE_JOBS=2           # 限制 FlashInfer JIT 并行编译，避免 nvcc OOM
+      - MAX_JOBS=2                      # 限制 torch JIT 并行编译
+      - TZ=Asia/Shanghai                # 修正时区（国内部署建议改 Shanghai）
+    volumes:
+      # 主模型与草稿模型路径映射
+      - /mnt/Docker/aeon-vllm/models/Qwen3.6/35B-FP8/Qwen3.6-35B-A3B-FP8:/model:ro
+      - /mnt/Docker/aeon-vllm/models/Qwen3.6/35B-FP8/Qwen3.6-35B-A3B-DFlash:/drafter:ro
+      # 缓存持久化
+      - /mnt/Docker/aeon-vllm/vllm-cache:/root/.cache/vllm
+      - /mnt/Docker/aeon-vllm/flashinfer-cache:/root/.cache/flashinfer
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      - serve
+      - /model
+      - --served-model-name
+      - Qwen3.6-35B-A3B-FP8
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --tensor-parallel-size
+      - "1"
+      - --dtype
+      - bfloat16
+      - --max-model-len
+      - "262144"                       # 256K 上下文
+      - --max-num-seqs
+      - "8"                            # 35B 单机并发降至 8，防止长文 OOM
+      - --max-num-batched-tokens
+      - "32768"
+      - --gpu-memory-utilization
+      - "0.85"                         # 预留 15% 给 DFlash + KV Cache
+      - --enable-chunked-prefill
+      - --enable-prefix-caching
+      - --enable-prompt-tokens-details
+      - --load-format
+      - fastsafetensors
+      - --attention-backend
+      - flash_attn                     # 35B-A3B 使用 flash_attn（非 TRITON_ATTN）
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_coder                    # Qwen3 原生工具调用解析器
+      - --reasoning-parser
+      - qwen3                          # Qwen3 推理解析器
+      - --default-chat-template-kwargs
+      - '{"preserve_thinking":true}'
+      - --speculative-config
+      - '{"method":"dflash","model":"/drafter","num_speculative_tokens":8}'
+      - --trust-remote-code
+```
+
+### 关键参数说明
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `--max-model-len` | 262144 | 支持 256K 上下文窗口 |
+| `--max-num-seqs` | 8 | 单机并发降至 8，防止长文 OOM |
+| `--gpu-memory-utilization` | 0.85 | 预留 15% 给 DFlash 推测解码 + KV Cache |
+| `--max-num-batched-tokens` | 32768 | 每批最大 token 数 |
+| `--tensor-parallel-size` | 1 | GB10 统一内存架构，无需 TP |
+| `--attention-backend` | flash_attn | 35B-A3B 使用 flash_attn 后端 |
+| `--speculative-config` | DFlash, num=8 | DFlash 推测解码，每轮猜 8 个 token |
+
+### 环境变量说明
+
+- **`VLLM_MARLIN_USE_ATOMIC_ADD=1`**：FP8 Marlin 量化必需的原子加法优化
+- **`VLLM_USE_FLASHINFER_SAMPLER=1`**：AEON 团队推荐的 FlashInfer 采样器
+- **`HF_HUB_OFFLINE=1`**：离线模式，避免启动时访问 HuggingFace
+- **`FI_NUM_COMPILE_JOBS=2`** / **`MAX_JOobs=2`**：限制编译并行度，避免 nvcc OOM
+
+---
+
+## 3. 启动服务
+
+```bash
+docker compose up -d
+```
+
+启动后可以通过以下接口访问：
+
+- **OpenAI 兼容 API**：`http://127.0.0.1:8000/v1`
+- **健康检查**：`curl http://127.0.0.1:8000/health`
+
+---
+
+## 4. llama-benchy 基准测试
+
+使用 `llama-benchy` 进行吞吐量与延迟测试：
+
+```bash
+llama-benchy \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen3.6-35B-A3B-FP8 \
+  --tokenizer /mnt/Docker/aeon-vllm/models/Qwen3.6/35B-FP8/Qwen3.6-35B-A3B-FP8 \
+  --pp 2048 --tg 128 --depth 0 4096 8192 \
+  --runs 1 --enable-prefix-caching
+```
+
+### 测试配置
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `--pp` | 2048 | Prompt 长度 2048 tokens |
+| `--tg` | 128 | 生成长度 128 tokens |
+| `--depth` | 0, 4096, 8192 | 上下文加载深度（预填 token 数） |
+| `--runs` | 1 | 每组测试 1 次 |
+| 并发 | 1 | 单请求测试 |
+
+### 测试结果
+
+| 模型 | 测试项 | 吞吐 (t/s) | 峰值吞吐 | TTFR (ms) | EST PPT (ms) | E2E TTFT (ms) |
+|------|--------|-----------|---------|-----------|-------------|--------------|
+| Qwen3.6-35B-A3B-FP8 | pp2048 | 3653.36 | — | 565.52 | 560.85 | 565.52 |
+| | tg128 | 65.19 | 82.00 | — | — | — |
+| | ctx_pp @ d4096 | 4612.72 | — | 893.08 | 888.41 | 893.08 |
+| | ctx_tg @ d4096 | 72.72 | 82.00 | — | — | — |
+| | pp2048 @ d4096 | 2705.61 | — | 761.62 | 756.95 | 761.62 |
+| | tg128 @ d4096 | 62.92 | 75.00 | — | — | — |
+| | ctx_pp @ d8192 | 5759.76 | — | 1427.30 | 1422.63 | 1427.30 |
+| | ctx_tg @ d8192 | 69.36 | 79.00 | — | — | — |
+| | pp2048 @ d8192 | 2918.18 | — | 706.48 | 701.81 | 706.48 |
+| | tg128 @ d8192 | 78.54 | 90.00 | — | — | — |
+
+### 结果解读
+
+- **pp2048（预填充阶段）**：基础吞吐约 **3653 t/s**，TTFT 约 565ms，首次 token 响应很快。
+- **上下文加载**：随着 depth 增加（0 → 4096 → 8192），上下文预填吞吐提升至 **4612 → 5760 t/s**，说明 prefix caching 在大上下文场景下效果显著。
+- **生成阶段（tg128）**：逐 token 吞吐约 **63–79 t/s**，考虑到 DFlash 推测解码的存在，实际有效生成速度会更高（每次可一次猜 8 个 token）。
+- **峰值吞吐**：生成阶段峰值可达 **75–90 t/s**，说明突发性能不错。
+
+> DFlash 推测解码的作用：每轮可以一次生成 8 个 token，理论加速比约 8x，实际受验证通过率影响。
+
+---
+
+## 5. 常见问题
+
+### 5.1 启动时报 OOM
+
+- 降低 `--max-num-seqs` 到 4 或 2
+- 降低 `--max-model-len` 到 131072 或 65536
+- 检查 DFlash 模型路径是否正确挂载
+
+### 5.2 性能不达标
+
+- 确认 `--attention-backend` 使用的是 `flash_attn` 而非 `TRITON_ATTN`
+- 检查 `VLLM_MARLIN_USE_ATOMIC_ADD=1` 是否已设置
+- 确认模型加载格式为 `fastsafetensors`
+
+### 5.3 编译阶段 nvcc OOM
+
+- 降低 `FI_NUM_COMPILE_JOBS` 到 1 或 2
+- 降低 `MAX_JOBS` 到 1 或 2
+
+---
+
+## 6. 总结
+
+在 DGX Spark（GB10, 128GB 统一内存）上部署 Qwen3.6-35B-A3B-FP8 的体验如下：
+
+- **优势**：统一内存架构无需 tensor parallel，单卡即可跑 35B 模型；128GB 内存让 256K 上下文成为可能；DFlash 推测解码带来额外吞吐提升。
+- **局限**：并发能力受限于内存带宽，建议 `--max-num-seqs` 不超过 8；长上下文场景下 TTFT 会随 depth 增长。
+- **适用场景**：离线推理、长文档分析、工具调用、代码生成等对延迟要求不极端苛刻的场景。
+
+---
+
+*硬件：NVIDIA DGX Spark (GB10, sm_121a, 128GB)*  
+*镜像：ghcr.io/aeon-7/aeon-vllm-ultimate:latest*  
+*测试日期：2026-08-04*
