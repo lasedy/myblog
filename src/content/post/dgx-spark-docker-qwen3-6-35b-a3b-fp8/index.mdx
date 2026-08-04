@@ -21,11 +21,19 @@ featured: true
 
 ### 1.1 硬件
 
-| 项目 | 规格 |
-|------|------|
-| 芯片 | NVIDIA GB10 (Grace Blackwell, sm_121a) |
-| 内存 | 128GB LPDDR5X 统一内存 |
-| 存储 | /mnt/Docker/aeon-vllm/models/（挂载路径） |
+<div class="dgx-card-grid">
+  <div class="dgx-card"><div class="dgx-card-label">芯片</div><div class="dgx-card-value">NVIDIA GB10</div><div class="dgx-card-desc">Grace Blackwell · sm_121a</div></div>
+  <div class="dgx-card"><div class="dgx-card-label">内存</div><div class="dgx-card-value">128GB</div><div class="dgx-card-desc">LPDDR5X 统一内存</div></div>
+  <div class="dgx-card"><div class="dgx-card-label">模型存储</div><div class="dgx-card-value">/mnt/Docker</div><div class="dgx-card-desc">aeon-vllm/models/</div></div>
+</div>
+
+<style>
+.dgx-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}
+.dgx-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:16px;border:0.5px solid var(--color-border-tertiary)}
+.dgx-card-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+.dgx-card-value{font-size:18px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.dgx-card-desc{font-size:13px;color:var(--color-text-tertiary)}
+</style>
 
 ### 1.2 模型文件
 
@@ -121,15 +129,23 @@ services:
 
 ### 关键参数说明
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| `--max-model-len` | 262144 | 支持 256K 上下文窗口 |
-| `--max-num-seqs` | 8 | 单机并发降至 8，防止长文 OOM |
-| `--gpu-memory-utilization` | 0.85 | 预留 15% 给 DFlash 推测解码 + KV Cache |
-| `--max-num-batched-tokens` | 32768 | 每批最大 token 数 |
-| `--tensor-parallel-size` | 1 | GB10 统一内存架构，无需 TP |
-| `--attention-backend` | flash_attn | 35B-A3B 使用 flash_attn 后端 |
-| `--speculative-config` | DFlash, num=8 | DFlash 推测解码，每轮猜 8 个 token |
+<div class="dgx-params-grid">
+  <div class="dgx-param"><div class="dgx-param-key">--max-model-len</div><div class="dgx-param-val">262144</div><div class="dgx-param-desc">256K 上下文窗口</div></div>
+  <div class="dgx-param"><div class="dgx-param-key">--max-num-seqs</div><div class="dgx-param-val">8</div><div class="dgx-param-desc">单机并发，防长文 OOM</div></div>
+  <div class="dgx-param"><div class="dgx-param-key">--gpu-memory-utilization</div><div class="dgx-param-val">0.85</div><div class="dgx-param-desc">预留 15% 给 DFlash + KV</div></div>
+  <div class="dgx-param"><div class="dgx-param-key">--max-num-batched-tokens</div><div class="dgx-param-val">32768</div><div class="dgx-param-desc">每批最大 token 数</div></div>
+  <div class="dgx-param"><div class="dgx-param-key">--tensor-parallel-size</div><div class="dgx-param-val">1</div><div class="dgx-param-desc">统一内存，无需 TP</div></div>
+  <div class="dgx-param"><div class="dgx-param-key">--attention-backend</div><div class="dgx-param-val">flash_attn</div><div class="dgx-param-desc">35B-A3B 推荐后端</div></div>
+  <div class="dgx-param"><div class="dgx-param-key">--speculative-config</div><div class="dgx-param-val">DFlash×8</div><div class="dgx-param-desc">每轮猜 8 个 token</div></div>
+</div>
+
+<style>
+.dgx-params-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:16px 0}
+.dgx-param{background:var(--color-background-primary);border-radius:var(--border-radius-md);padding:12px 14px;border:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;gap:6px}
+.dgx-param-key{font-size:12px;font-family:var(--font-mono);color:var(--color-text-tertiary)}
+.dgx-param-val{font-size:15px;font-weight:500;color:var(--color-text-primary)}
+.dgx-param-desc{font-size:13px;color:var(--color-text-secondary)}
+</style>
 
 ### 环境变量说明
 
@@ -168,28 +184,63 @@ llama-benchy \
 
 ### 测试配置
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| `--pp` | 2048 | Prompt 长度 2048 tokens |
-| `--tg` | 128 | 生成长度 128 tokens |
-| `--depth` | 0, 4096, 8192 | 上下文加载深度（预填 token 数） |
-| `--runs` | 1 | 每组测试 1 次 |
-| 并发 | 1 | 单请求测试 |
+<div class="dgx-test-config">
+  <div class="dgx-config-item"><span class="dgx-config-label">Prompt 长度</span><span class="dgx-config-value">2048</span></div>
+  <div class="dgx-config-item"><span class="dgx-config-label">生成长度</span><span class="dgx-config-value">128</span></div>
+  <div class="dgx-config-item"><span class="dgx-config-label">上下文深度</span><span class="dgx-config-value">0 / 4096 / 8192</span></div>
+  <div class="dgx-config-item"><span class="dgx-config-label">测试次数</span><span class="dgx-config-value">1</span></div>
+  <div class="dgx-config-item"><span class="dgx-config-label">并发数</span><span class="dgx-config-value">1</span></div>
+</div>
+
+<style>
+.dgx-test-config{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0;padding:16px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.dgx-config-item{display:flex;flex-direction:column;gap:4px}
+.dgx-config-label{font-size:12px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:0.3px}
+.dgx-config-value{font-size:16px;font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)}
+</style>
 
 ### 测试结果
 
-| 模型 | 测试项 | 吞吐 (t/s) | 峰值吞吐 | TTFR (ms) | EST PPT (ms) | E2E TTFT (ms) |
-|------|--------|-----------|---------|-----------|-------------|--------------|
-| Qwen3.6-35B-A3B-FP8 | pp2048 | 3653.36 | — | 565.52 | 560.85 | 565.52 |
-| | tg128 | 65.19 | 82.00 | — | — | — |
-| | ctx_pp @ d4096 | 4612.72 | — | 893.08 | 888.41 | 893.08 |
-| | ctx_tg @ d4096 | 72.72 | 82.00 | — | — | — |
-| | pp2048 @ d4096 | 2705.61 | — | 761.62 | 756.95 | 761.62 |
-| | tg128 @ d4096 | 62.92 | 75.00 | — | — | — |
-| | ctx_pp @ d8192 | 5759.76 | — | 1427.30 | 1422.63 | 1427.30 |
-| | ctx_tg @ d8192 | 69.36 | 79.00 | — | — | — |
-| | pp2048 @ d8192 | 2918.18 | — | 706.48 | 701.81 | 706.48 |
-| | tg128 @ d8192 | 78.54 | 90.00 | — | — | — |
+<div class="dgx-bench-wrapper">
+  <div class="dgx-bench-section">
+    <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:500;color:var(--color-text-primary)">预填充吞吐 (Prefill Throughput)</h4>
+    <div class="dgx-bench-cards">
+      <div class="dgx-bench-card"><div class="dgx-bench-label">pp2048</div><div class="dgx-bench-number">3653</div><div class="dgx-bench-unit">tokens/s</div></div>
+      <div class="dgx-bench-card"><div class="dgx-bench-label">ctx_pp @ d4096</div><div class="dgx-bench-number">4613</div><div class="dgx-bench-unit">tokens/s</div></div>
+      <div class="dgx-bench-card"><div class="dgx-bench-label">ctx_pp @ d8192</div><div class="dgx-bench-number">5760</div><div class="dgx-bench-unit">tokens/s</div></div>
+    </div>
+  </div>
+  
+  <div class="dgx-bench-section">
+    <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:500;color:var(--color-text-primary)">生成吞吐 (Token Generation)</h4>
+    <div class="dgx-bench-cards">
+      <div class="dgx-bench-card"><div class="dgx-bench-label">tg128 (depth=0)</div><div class="dgx-bench-number">65</div><div class="dgx-bench-unit">tokens/s</div><div class="dgx-bench-peak">峰值 82 t/s</div></div>
+      <div class="dgx-bench-card"><div class="dgx-bench-label">tg128 @ d4096</div><div class="dgx-bench-number">63</div><div class="dgx-bench-unit">tokens/s</div><div class="dgx-bench-peak">峰值 75 t/s</div></div>
+      <div class="dgx-bench-card"><div class="dgx-bench-label">tg128 @ d8192</div><div class="dgx-bench-number">69</div><div class="dgx-bench-unit">tokens/s</div><div class="dgx-bench-peak">峰值 90 t/s</div></div>
+    </div>
+  </div>
+  
+  <div class="dgx-bench-section">
+    <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:500;color:var(--color-text-primary)">首字延迟 (TTFT)</h4>
+    <div class="dgx-bench-cards">
+      <div class="dgx-bench-card"><div class="dgx-bench-label">pp2048</div><div class="dgx-bench-number">566</div><div class="dgx-bench-unit">ms</div></div>
+      <div class="dgx-bench-card"><div class="dgx-bench-label">ctx_pp @ d4096</div><div class="dgx-bench-number">893</div><div class="dgx-bench-unit">ms</div></div>
+      <div class="dgx-bench-card"><div class="dgx-bench-label">ctx_pp @ d8192</div><div class="dgx-bench-number">1427</div><div class="dgx-bench-unit">ms</div></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.dgx-bench-wrapper{display:grid;grid-template-columns:1fr;gap:20px;margin:16px 0;padding:20px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.dgx-bench-section{display:flex;flex-direction:column}
+.dgx-bench-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.dgx-bench-card{background:var(--color-background-primary);border-radius:var(--border-radius-md);padding:14px 16px;border:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.dgx-bench-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--color-background-info)}
+.dgx-bench-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:4px}
+.dgx-bench-number{font-size:28px;font-weight:500;color:var(--color-text-primary);line-height:1}
+.dgx-bench-unit{font-size:12px;color:var(--color-text-tertiary);margin-top:2px}
+.dgx-bench-peak{font-size:11px;color:var(--color-text-tertiary);margin-top:6px;padding-top:6px;border-top:0.5px solid var(--color-border-tertiary)}
+</style>
 
 ### 结果解读
 
