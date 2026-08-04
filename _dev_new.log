@@ -85,3 +85,4 @@
 [2m  EPERM: operation not permitted, rename 'E:\work\my-blog\.astro\data-store.json.tmp' -> 'E:\work\my-blog\.astro\data-store.json'
     at async Object.rename (node:internal/fs/promises:784:10)
     [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[2m14:23:09[22m [34m[glob-loader][39m Reloaded data from [32mdgx-spark-docker-qwen3-6-35b-a3b-fp8/index.mdx[39m
