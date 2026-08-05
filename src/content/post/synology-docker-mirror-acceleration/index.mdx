@@ -1,0 +1,172 @@
+---
+title: "群晖 DSM 7.2 Container Manager 配置 Docker 镜像加速（避坑实录）"
+description: "群晖 DSM 7.2.1 + Container Manager 上给 Docker 配 registry-mirrors 加速的完整步骤与踩坑记录：为什么 /etc/docker/daemon.json 不生效、正确路径在哪、为什么稳定源必须排第一、以及 daocloud 与 xuanyuan 实测对比。"
+publishDate: 2026-08-05
+read: 10
+tags: ["群晖", "Synology", "Docker", "Container Manager", "镜像加速", "registry-mirrors", "教程"]
+img: "/assets/synology-docker-mirror-cover.jpg"
+img_alt: "群晖 DSM 7.2 Container Manager 配置 Docker 镜像加速（避坑实录）"
+---
+
+![群晖 DSM 7.2 Container Manager 配置 Docker 镜像加速（避坑实录）](/assets/synology-docker-mirror-cover.jpg)
+
+环境：**群晖 DSM 7.2.1-69057 + Container Manager（原 Docker 套件）**。
+
+直连 `docker.io` 在群晖上拉镜像经常超时 / 极慢，本文记录一次完整的加速配置过程，以及几个会让人白忙活的坑。
+
+## 一、最大的坑：`/etc/docker/daemon.json` 在群晖上不生效
+
+网上大部分 Linux 教程让你改：
+
+```bash
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "registry-mirrors": ["https://docker.m.daocloud.io"]
+}
+EOF
+```
+
+**在群晖上这是错的，写了等于白写。** 原因有两点：
+
+1. 群晖的 `dockerd` 根本不读 `/etc/docker/daemon.json`；
+2. `/etc/` 在群晖上是一层 overlayfs，即便你强行写进去，重启或套件重载后也会被还原。
+
+正确的配置文件路径是：
+
+```
+/var/packages/ContainerManager/etc/dockerd.json
+```
+
+注意文件名是 **`dockerd.json`**（多了个 d），不是 `daemon.json`；目录也不是 `/etc/docker/`。
+
+## 二、千万别用 `cat >` 整文件覆盖
+
+群晖默认的 `dockerd.json` 一般长这样：
+
+```json
+{"data-root":"/var/packages/ContainerManager/var/docker","log-driver":"db","registry-mirrors":[],"storage-driver":"btrfs"}
+```
+
+里面 `data-root`、`log-driver`、`storage-driver` 都是群晖运行 Docker 需要的字段，尤其是 `storage-driver: btrfs` 在 Btrfs 卷上很重要。**用 `cat >` 覆盖会把这些字段全清掉，可能直接导致 Docker 起不来。**
+
+正确做法：只改 `registry-mirrors` 这一项，其它原样保留。
+
+## 三、镜像源实测对比（关键结论）
+
+实测 `docker pull alpine:latest`，结果出乎意料：
+
+| 镜像源 | 结果 | 耗时 |
+| --- | --- | --- |
+| `docker.xuanyuan.me` | 闲时快，高峰直接限流 | ~8s（闲）/ 失败（忙） |
+| `docker.m.daocloud.io` | 稳定成功 | ~20s |
+
+xuanyuan 高峰报错长这样：
+
+```
+error pulling image configuration: download failed after attempts=1:
+toomanyrequests: 免费节点当前繁忙，请稍后重试。
+```
+
+### 关键坑：Docker 镜像源不会可靠 failover
+
+注意报错里的 `attempts=1`——Docker **只试了一次就放弃，并不会自动切换到下一个镜像源**。这意味着：
+
+> 如果把会限流的 xuanyuan 放在数组第一个，它一忙，你的 `docker pull` 就直接失败，而不是回退到 daocloud。
+
+所以**稳定源必须排第一**。最终顺序定为：
+
+- `docker.m.daocloud.io` —— 首选，慢但稳
+- `docker.xuanyuan.me` —— 备用，闲时快，但限流时不影响主链路
+
+> 补充：Container Manager 图形界面里「Registry → 编辑 → Registry Mirrors」那个入口，对命令行 `docker pull` **不生效**，最终以 `docker info` 的输出为准，别在那儿配完就以为好了。
+
+## 四、完整操作步骤
+
+SSH 进群晖，`sudo -i` 提权。
+
+**1. 先查看现有配置**（确认内容，别盲覆盖）：
+
+```bash
+cat /var/packages/ContainerManager/etc/dockerd.json
+```
+
+**2. 只替换 `registry-mirrors`**（下面这条 sed 通用：无论当前是空数组 `[]` 还是已填了别的，都能整段替换，不会动其它字段）：
+
+```bash
+sed -i 's#"registry-mirrors":\[[^]]*\]#"registry-mirrors":["https://docker.m.daocloud.io","https://docker.xuanyuan.me"]#' /var/packages/ContainerManager/etc/dockerd.json
+```
+
+**3. 确认写入结果**：
+
+```bash
+cat /var/packages/ContainerManager/etc/dockerd.json
+```
+
+应变为：
+
+```json
+{"data-root":"/var/packages/ContainerManager/var/docker","log-driver":"db","registry-mirrors":["https://docker.m.daocloud.io","https://docker.xuanyuan.me"],"storage-driver":"btrfs"}
+```
+
+**4. 重启 Container Manager 套件**（群晖不热加载配置，必须重启才生效）：
+
+```bash
+# 命令行方式
+synosystemctl restart pkgctl-ContainerManager
+# 或
+/var/packages/ContainerManager/scripts/start-stop-status stop
+/var/packages/ContainerManager/scripts/start-stop-status start
+```
+
+也可以在 DSM 网页「套件中心 → Container Manager → 停止 → 启动」。**不要直接重启 NAS。**
+
+**5. 验证是否生效**：
+
+```bash
+docker info | grep -A 3 "Registry Mirrors"
+```
+
+看到如下内容即成功（daocloud 排第一）：
+
+```
+ Registry Mirrors:
+  https://docker.m.daocloud.io/
+  https://docker.xuanyuan.me/
+```
+
+> `docker info` 还会打印一堆 `WARNING: No cpu cfs quota / blkio throttle ...`，这是群晖内核没开启相关 cgroup 特性的常态提示，每台群晖都这样，与镜像加速无关，无视即可。
+
+**6. 实测拉取**（不再手写镜像前缀，自动走加速源）：
+
+```bash
+time docker pull alpine
+```
+
+实测输出：
+
+```
+latest: Pulling from library/alpine
+55afa1ecc21d: Pull complete
+Status: Downloaded newer image for alpine:latest
+real  0m19.757s
+```
+
+注意显示成 `docker.io/library/alpine:latest` 是 Docker 给镜像打的标准标签名，无论走哪个镜像源都会这么显示，**不代表绕过了加速**；19.7s 的耗时与前面 daocloud 单测的 ~20s 吻合，说明确实走了首选源。
+
+## 五、排错清单
+
+- **`docker info` 看不到镜像源**：确认路径是 `dockerd.json`（不是 `daemon.json`），且已经重启过套件。
+- **拉取依旧很慢 / 像在直连**：确认 `docker info` 的 `Registry Mirrors` 有内容，且首选源可达。可临时单测：`docker pull docker.m.daocloud.io/library/alpine`。
+- **xuanyuan 限流报错**：正常现象，daocloud 在前面托底，不影响使用；想要更稳更快可考虑 xuanyuan 付费专属节点，或在数组里再加 `https://hub.rat.dev`、`https://docker.1panel.live` 等源做备份。
+
+## 小结
+
+| 要点 | 结论 |
+| --- | --- |
+| 配置路径 | `/var/packages/ContainerManager/etc/dockerd.json`（非 `/etc/docker/daemon.json`） |
+| 修改方式 | 只改 `registry-mirrors`，保留 `data-root` / `storage-driver` 等原字段 |
+| 源顺序 | 稳定源（daocloud）在前，快但限流的（xuanyuan）在后 |
+| 生效方式 | 重启 Container Manager 套件 |
+| 验证 | `docker info \| grep -A 3 "Registry Mirrors"` |
+
+照此配置，群晖上 `docker pull` 就能稳定走加速，不再被直连 docker.io 的超时折磨。
