@@ -1,0 +1,246 @@
+---
+title: "DGX Spark 部署 spark-comfyui：国内网络环境下 ComfyUI 容器化完整踩坑记录"
+description: "在 NVIDIA DGX Spark（GB10, 128GB 统一内存）上用 spark-comfyui 一键部署 ComfyUI 的完整记录：国内网络下 401 镜像源、Dockerfile 代理注入、首次启动 PermissionError 与节点目录卡死等问题的根因分析与修复。"
+publishDate: 2026-08-06
+read: 14
+tags: ["DGX Spark", "ComfyUI", "Docker", "本地部署", "AI 绘画", "代理", "镜像加速"]
+img: "/assets/dgx-spark-comfyui-china-deploy-cover.jpg"
+img_alt: "DGX Spark 部署 spark-comfyui 国内网络踩坑记录"
+featured: true
+---
+
+## 写在前面
+
+手上这台 **NVIDIA DGX Spark（GB10 芯片, sm_121a, 128GB 统一内存）** 主要用来跑本地 LLM 推理，但它那 124GB 统一显存也极其适合本地 AI 绘画 / 视频生成。GitHub 上 `bjarkebolding/spark-comfyui` 这个项目，正是面向 DGX Spark 的 **ComfyUI 容器化一键部署脚本**（install / run / tune / prune），镜像约 11.7GB，数据通过 bind-mount 放在 `data/` 目录，省去了手动配 PyTorch cu130、SageAttention、onnxruntime 的麻烦。
+
+这篇记录在国内网络环境下把它跑通的全过程——从 `docker build` 的 401，到 Dockerfile 代理注入，再到首次 `run` 的权限报错和节点目录卡死，最后给出一份可直接照抄的干净配置清单。
+
+> 本文用的脚本版本：`v2026.08.05.2`。硬件：DGX Spark GB10，124546 MB 统一显存。
+
+---
+
+## 1. 国内网络环境痛点
+
+这个脚本的网络需求集中在四处，每一处在国内都各有各的难：
+
+| 环节 | 来源 | 国内可达性 |
+|---|---|---|
+| `git clone` 脚本本身 | GitHub | 慢 / 不稳定 |
+| `install` 构建镜像 | PyPI（PyTorch cu130 wheel）、GitHub（ComfyUI 源码）、onnxruntime wheel | PyPI 有镜像可用，GitHub 慢 |
+| 自定义节点 | Comfy Registry + GitHub | 慢 |
+| 模型下载 | HuggingFace、CivitAI | HF 需镜像站，CivitAI 基本不可达 |
+
+我的出口环境：家里 Windows 主机跑 Clash（**Allow LAN 已开**，端口 **789**，不是常见的 7890，IP `192.168.0.107`），DGX Spark 走局域网 HTTP 代理，无需在 Spark 上装任何客户端。
+
+---
+
+## 2. 总体方案：局域网代理 + 镜像源分层加速
+
+核心思路是把"国内可达"和"必须走代理"的流量分清楚：
+
+- **守护进程拉基座 / 前端镜像**：靠 `daemon.json` 里的国内镜像源（daocloud / xuanyuan）**直连**，不走代理。
+- **容器内 pip / git 下载**（torch cu130、clone ComfyUI、onnxruntime wheel）：靠写死进 Dockerfile 的 `ENV http_proxy` 走局域网代理。
+- **HuggingFace 直链 pip install**：同样走 `https_proxy`，不需要 `HF_ENDPOINT` 镜像变量。
+
+> 关键认知：**shell 里的 `http_proxy` 环境变量传不到 Docker 守护进程**，也传不到 `docker build` 的 `RUN` 步骤——这两处必须各自单独配置。
+
+---
+
+## 3. 第一个坑：`docker build` 报 401
+
+刚跑 `./spark-comfyui.sh install`，第一行就挂了：
+
+```
+ERROR: failed to solve: failed to resolve source metadata for docker.io/docker/dockerfile:1:
+unexpected status from HEAD request to https://docker.m.daocloud.io/v2/docker/dockerfile/manifests/1?ns=docker.io: 401 Unauthorized
+```
+
+BuildKit 拉前端镜像 `docker/dockerfile:1` 时，走了 `daemon.json` 里的 `docker.m.daocloud.io` 镜像源，daocloud 对它返回了 401。
+
+### 根因：Clash 用了 Global 模式
+
+排查后才发现，**不是镜像源本身坏，而是 Clash 的路由模式**：
+
+- **Global 模式**：DGX 的所有出网（包括请求 `docker.m.daocloud.io`）都被 Clash 塞进海外代理节点。daocloud 是国内镜像源，对来自境外 IP 的请求拒绝 / 要求鉴权 → 返回 `401`。
+- **Rule 模式**：daocloud / xuanyuan 这类国内域名命中"国内直连"规则，从真实 ISP 出口出去 → daocloud 正常返回 `200`。
+
+**切回 Rule 模式，401 立刻消失。** 这也意味着 `daemon.json` 里那两个国内镜像源完全不用删，原样保留即可。Rule 模式正好做对了分工：国内镜像直连、国外站点走代理。
+
+> 记牢：**以后在 DGX 上构建 / 更新 spark-comfyui，Clash 保持 Rule 模式，别切 Global。**
+
+---
+
+## 4. 第二个坑：Dockerfile 必须注入代理
+
+401 解决后，构建推进到 `RUN pip install torch`(cu130)、`git clone ComfyUI`、下载 onnxruntime wheel 时，又因容器内无代理而 `Network is unreachable`。
+
+原因是 Dockerfile 没有声明 `ARG http_proxy`，shell 里的代理变量也传不进 `RUN` 步骤。原项目 `cmd_install` 还不转发 `$@`，所以 `--build-arg` 也不可靠。最稳的做法是**直接把代理写死进 Dockerfile**：
+
+```dockerfile
+FROM ${CUDA_IMAGE} AS base
+ARG UID
+ENV DEBIAN_FRONTEND=noninteractive
+ENV http_proxy=http://192.168.0.107:789
+ENV https_proxy=http://192.168.0.107:789
+```
+
+注意两点：
+
+1. **`ENV` 行内不能写 `#` 注释**。写成 `ENV http_proxy=http://192.168.0.107:789   # ← 加在这` 会报错 `can't find = in "#"`，因为 Docker 把行尾 `#` 当成字面内容。说明要单独成行。
+2. 这两行放在第一个 `FROM` 之后，会顺着 `base → torch → sage → final` 一路继承，覆盖到 onnxruntime 步骤。
+
+> 副作用（可接受）：写死的 `ENV http_proxy` 会被**烤进最终镜像**。好处是以后在 ComfyUI 里下载模型 / 装节点依赖会自动走代理；代价是若哪天代理机关了，容器内尊重 `http_proxy` 的外网操作会连不上（纯本地推理不受影响）。
+
+然后直接构建，不用带 `--build-arg`：
+
+```bash
+./spark-comfyui.sh install
+```
+
+前面已缓存的层会跳过，只重跑后面的步骤。第一次构建会下载约 4GB 并编译 SageAttention，几分钟到十几分钟不等。
+
+---
+
+## 5. 第三个坑：`run` 首次启动报错
+
+构建成功后 `./spark-comfyui.sh run`，出现两类报错。
+
+### 5.1 PermissionError：`/opt/ComfyUI/user/__manager`
+
+```
+Traceback (most recent call last):
+  File "/opt/spark/mods/30-manager-config/configure.py", line 89, in <module>
+    os.makedirs(mgr_dir, exist_ok=True)
+PermissionError: [Errno 13] Permission denied: '/opt/ComfyUI/user/__manager'
+[warn] Manager config apply failed — continuing, Manager may be gated
+```
+
+这是 **非致命** 警告：脚本想写 Manager 配置（`network_mode` 设成 `personal_cloud`、开 uv 等），但没权限建目录。当时 ComfyUI 主服务照常起。
+
+### 5.2 节点 `not found` 且 catalogue 卡 600 秒
+
+```
+ERROR: An error occurred while installing 'comfyui-workflow-models-downloader'.
+Node 'comfyui-workflow-models-downloader@unknown' not found in
+[info] registry cache is cold — fetching the node catalogue
+[info]   still fetching ... 600s — retrying comfyui-workflow-models-downloader
+... 重试仍 not found ...
+[warn] node 'comfyui-workflow-models-downloader' did not install — continuing without it
+[warn] one or more listed nodes are missing; the next start retries them
+```
+
+这个 `comfyui-workflow-models-downloader` 是脚本默认塞进 `comfyui-nodes.list` 的第三方节点（会自动下载模型）。首次运行 registry 缓存是冷的，cm-cli 先报 not found，再拉节点目录——结果拉了整整 **600 秒** 仍解析不到（名字在 registry 里对不上，不是网络问题）。
+
+**最坑的一点**：那句 `the next start retries them` 意味着——**如果不处理，下次 `run` 还会再卡 10 分钟**。
+
+> 补充：那次 catalogue 拉取卡 280s+ 时我按 `Ctrl-C` 没杀掉它（entrypoint 的 fetch 循环在子进程里吞了 SIGINT），必须另开终端 `docker stop spark-comfyui` 强杀。
+
+### 5.3 一串同源权限报错
+
+首跑日志里还跟着两个权限错误：
+
+```
+[ERROR] Failed to initialize database ... unable to open database file
+[WARNING] Permission denied: '/opt/ComfyUI/input/3d'
+```
+
+这三个报错（`__manager` / SQLite DB / `input/3d`）其实是**同一个根因**：`data/` 目录是 `install` 时以 root 建的，属主是 root；而容器里跑 ComfyUI 的用户是 `comfy`（UID 1000），凡是往 bind-mount 的 `data/` 写操作全被拒。
+
+---
+
+## 6. 修复：chown + 注释节点
+
+停掉容器，两步即可：
+
+```bash
+# 1. 停掉正在跑的容器（在 run 的前台终端 Ctrl-C；若卡死则另开终端 docker stop spark-comfyui）
+# 2. 修 data 目录属主，让容器用户 comfy(UID1000) 能写
+cd /mnt/spark-comfyui
+chown -R 1000:1000 data
+
+# 3. 注释掉那个解析不到的默认节点，避免每次启动卡 10 分钟
+sed -i 's/^comfyui-workflow-models-downloader/#comfyui-workflow-models-downloader/' comfyui-nodes.list
+```
+
+`chown -R 1000:1000 data` 只改元数据（inode 属主），不搬文件内容，几十 GB 模型也是秒级完成。
+
+然后重启：
+
+```bash
+./spark-comfyui.sh run
+```
+
+---
+
+## 7. 干净启动验证
+
+重启后日志全部清净，关键行如下：
+
+```
+==> Manager config
+present config OK
+
+==> Registry node list
+[info] node list has no active entries
+
+onnxruntime: OK — GPU provider live
+[INFO] Using sage attention
+[INFO] [ComfyUI-Manager] network_mode: personal_cloud
+[INFO] Context impl SQLiteImpl.        # 之前的 unable to open database file 消失
+[INFO] To see the GUI go to: http://0.0.0.0:8188
+```
+
+对比修复前后：
+
+| 项目 | 修复前 | 修复后 |
+|---|---|---|
+| Manager 配置 | `PermissionError ... __manager` | `present config OK` |
+| Manager 模式 | `network_mode: public` | `network_mode: personal_cloud` |
+| SQLite DB | `unable to open database file` | `Context impl SQLiteImpl.` |
+| `input/3d` 目录 | `Permission denied` + 导入失败 | 无报错 |
+| 节点 catalogue | 拉 600s 仍 not found | `node list has no active entries`（秒过） |
+
+硬件识别也正常：
+
+```
+[INFO] Total VRAM 124546 MB, total RAM 124546 MB
+[INFO] pytorch version: 2.13.0+cu130
+[INFO] Device: cuda:0 NVIDIA GB10 : cudaMallocAsync
+```
+
+浏览器开 `http://<spark-ip>:8188` 即可使用。模型丢进 `data/ComfyUI/models/checkpoints`（或对应类型子目录）即可在 ComfyUI 里加载。
+
+---
+
+## 8. 完整可复用配置清单
+
+以后重装 / 更新照这份走：
+
+1. **Clash 保持 Rule 模式**，Allow LAN 开启，端口 789（按你实际填）。
+2. `daemon.json` 的国内镜像源（`docker.m.daocloud.io` + `docker.xuanyuan.me`）**原样保留**，不用删。
+3. `container/Dockerfile` 在 `FROM ${CUDA_IMAGE} AS base` 之后加两行（**不带行内 `#`**）：
+   ```dockerfile
+   ENV http_proxy=http://192.168.0.107:789
+   ENV https_proxy=http://192.168.0.107:789
+   ```
+4. `./spark-comfyui.sh install` 构建（首次几分钟到十几分钟，后续复用缓存）。
+5. `comfyui-nodes.list` 里注释掉 `comfyui-workflow-models-downloader`（除非你确认它能从 registry 解析）。
+6. 首次 `run` 前先 `chown -R 1000:1000 data`。
+7. `./spark-comfyui.sh tune --persist`（关 swap、开持久化，可选但推荐）后 `run`。
+
+> 注意：`git pull` 更新本项目会把 Dockerfile 还原，第 3 步需重做；节点列表注释也照旧保持。
+
+---
+
+## 9. 安全注意事项
+
+- **8188 端口只监听局域网**，不要映射到公网。Manager 的 `personal_cloud` 模式也仅限可信局域网。
+- 默认会**自动安装并执行第三方自定义节点代码**（`comfyui-workflow-models-downloader`）。不需要就注释掉 `comfyui-nodes.list`，它会在每次启动时尝试联网安装并下载模型。
+- 写死进镜像的 `ENV http_proxy` 会在运行时持续生效：代理机常开时方便，代理机关了时纯本地推理不受影响，但涉及外网的下载 / 装节点会连不上——属于预期行为。
+- 脚本自带断点续传和 sha256 校验，网络不稳也不易产生坏文件。
+
+---
+
+## 结语
+
+spark-comfyui 把 DGX Spark 上的 ComfyUI 部署收成了"几条命令"，但国内网络下真正的成本在"让 Docker 构建和容器内能联网"这件事上。记住三个关键点就行：**Clash 用 Rule 模式（别 Global，否则国内镜像源被送海外节点报 401）**、**Dockerfile 写死 `ENV http_proxy` 覆盖构建内下载**、**`chown` 修好 data 目录属主让 ComfyUI 能写配置与数据库**。跑通之后，124GB 统一显存跑本地 AI 绘画 / 视频生成，体验相当从容。
